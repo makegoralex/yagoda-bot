@@ -64,6 +64,12 @@
         font-size: 14px;
       }
 
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
       .status.error {
         background: #ffecec;
         color: #a61b1b;
@@ -77,12 +83,16 @@
         Нажми кнопку — мы отправим тестовое сообщение в ваш Telegram-бот и
         покажем статус ответа.
       </p>
-      <button id="sendButton" type="button">Отправить тест в бот</button>
+      <div class="actions">
+        <button id="sendButton" type="button">Отправить тест в бот</button>
+        <button id="checkButton" type="button">Проверить токен бота</button>
+      </div>
       <div id="status" class="status">Ждём отправки...</div>
     </div>
 
     <script>
       const button = document.getElementById("sendButton");
+      const checkButton = document.getElementById("checkButton");
       const statusBox = document.getElementById("status");
 
       const setStatus = (text, isError = false) => {
@@ -92,6 +102,7 @@
 
       button.addEventListener("click", async () => {
         button.disabled = true;
+        checkButton.disabled = true;
         setStatus("Отправляем сообщение в бот...");
 
         try {
@@ -107,6 +118,32 @@
           setStatus(`Ошибка: ${error.message}`, true);
         } finally {
           button.disabled = false;
+          checkButton.disabled = false;
+        }
+      });
+
+      checkButton.addEventListener("click", async () => {
+        button.disabled = true;
+        checkButton.disabled = true;
+        setStatus("Проверяем токен бота...");
+
+        try {
+          const response = await fetch("/api/check-token", { method: "POST" });
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.detail || "Ошибка проверки токена");
+          }
+
+          const username = data.bot_username
+            ? `@${data.bot_username}`
+            : "бот";
+          setStatus(`Токен работает ✅ Ответил ${username}.`);
+        } catch (error) {
+          setStatus(`Ошибка: ${error.message}`, true);
+        } finally {
+          button.disabled = false;
+          checkButton.disabled = false;
         }
       });
     </script>

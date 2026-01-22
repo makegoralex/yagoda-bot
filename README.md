@@ -28,7 +28,10 @@ pip install -r requirements.txt
 2. Откройте `https://api.telegram.org/bot<ВАШ_ТОКЕН>/getUpdates`.
 3. Возьмите `chat.id` из сообщения пользователя или группы.
 
-### 3) Запустите сервер
+### 3) Проверка токена (без chat_id)
+Если вы хотите проверить, что токен валиден, без `chat_id`, нажмите кнопку **«Проверить токен бота»** на странице. Это вызывает `getMe` в Telegram API и работает только с `TELEGRAM_BOT_TOKEN`.
+
+### 4) Запустите сервер
 ```bash
 export TELEGRAM_BOT_TOKEN="ваш_токен"
 export TELEGRAM_CHAT_ID="ваш_chat_id"

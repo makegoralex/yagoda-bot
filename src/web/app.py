@@ -72,3 +72,25 @@ def send_test_message() -> JSONResponse:
             "telegram_response": response.json(),
         }
     )
+
+
+@app.post("/api/check-token")
+def check_token() -> JSONResponse:
+    token = _get_required_env("TELEGRAM_BOT_TOKEN")
+    response = requests.get(
+        f"https://api.telegram.org/bot{token}/getMe",
+        timeout=10,
+    )
+
+    if not response.ok:
+        raise HTTPException(status_code=500, detail=response.text)
+
+    payload = response.json()
+    return JSONResponse(
+        {
+            "status": "ok",
+            "telegram_status": response.status_code,
+            "telegram_response": payload,
+            "bot_username": payload.get("result", {}).get("username"),
+        }
+    )

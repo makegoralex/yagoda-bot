@@ -3,65 +3,93 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Yagoda Bot Demo</title>
+    <title>Yagoda Bot — MVP Спецификация</title>
     <style>
+      :root {
+        color-scheme: light;
+      }
+
       body {
         font-family: "Inter", system-ui, -apple-system, sans-serif;
         background: #f6f6fb;
         margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
         color: #1d1f2b;
       }
 
-      .card {
-        width: min(520px, 90vw);
-        background: white;
-        border-radius: 20px;
-        padding: 32px;
-        box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
+      .page {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 48px 24px 72px;
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+      }
+
+      header {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .eyebrow {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #5b6b8b;
       }
 
       h1 {
-        margin: 0 0 12px;
-        font-size: 28px;
+        margin: 0;
+        font-size: 36px;
       }
 
       p {
-        margin: 0 0 24px;
+        margin: 0;
+        line-height: 1.6;
+        color: #2b2f3b;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 20px;
+      }
+
+      .card {
+        background: white;
+        border-radius: 18px;
+        padding: 24px;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+        border: 1px solid #eef1f7;
+      }
+
+      .card h2 {
+        margin: 0 0 12px;
+        font-size: 18px;
+      }
+
+      .card ul {
+        margin: 0;
+        padding-left: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
         line-height: 1.5;
       }
 
-      button {
-        border: none;
-        background: #2f67f6;
+      .callout {
+        background: linear-gradient(120deg, #2f67f6, #6b7bff);
         color: white;
-        font-size: 16px;
-        padding: 12px 18px;
-        border-radius: 12px;
-        cursor: pointer;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border-radius: 20px;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
       }
 
-      button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 8px 18px rgba(47, 103, 246, 0.3);
-      }
-
-      button:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-      }
-
-      .status {
-        margin-top: 18px;
-        padding: 12px 14px;
-        border-radius: 12px;
-        background: #f0f3ff;
-        font-size: 14px;
+      .callout strong {
+        font-size: 18px;
       }
 
       .actions {
@@ -70,23 +98,179 @@
         gap: 12px;
       }
 
+      button {
+        border: none;
+        background: white;
+        color: #2f67f6;
+        font-size: 15px;
+        font-weight: 600;
+        padding: 12px 18px;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 18px rgba(47, 103, 246, 0.25);
+      }
+
+      button:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .status {
+        font-size: 14px;
+        padding: 10px 14px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.2);
+      }
+
       .status.error {
-        background: #ffecec;
-        color: #a61b1b;
+        background: rgba(255, 255, 255, 0.2);
+        color: #ffe5e5;
+      }
+
+      .section-title {
+        font-weight: 600;
+        margin-bottom: 12px;
+        font-size: 16px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: #eef3ff;
+        color: #2f67f6;
+        font-weight: 600;
+        font-size: 13px;
+      }
+
+      .footer {
+        font-size: 13px;
+        color: #5b6b8b;
       }
     </style>
   </head>
   <body>
-    <div class="card">
-      <h1>Проверка связи с Telegram</h1>
-      <p>
-        Нажми кнопку — мы проверим токен вашего бота через Telegram API и
-        покажем статус ответа.
-      </p>
-      <div class="actions">
-        <button id="checkButton" type="button">Проверить токен бота</button>
+    <div class="page">
+      <header>
+        <span class="eyebrow">SaaS / Telegram bot + Admin Web</span>
+        <h1>Yagoda Bot — спецификация MVP для управления сменами и персоналом</h1>
+        <p>
+          Цель продукта — сделать бизнес управляемым через процедурную фиксацию
+          фактов: смены, инциденты, финконтроль, обучение и тесты. Если факт не
+          зафиксирован в системе — он не участвует в расчётах и допусках.
+        </p>
+      </header>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Роли и интерфейсы</h2>
+          <ul>
+            <li><strong>Бот:</strong> смены, инциденты, касса, обучение, тесты.</li>
+            <li><strong>Веб:</strong> структура компании, политики, контент.</li>
+            <li><strong>Владелец:</strong> отчёты, уведомления, контроль.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>Онбординг</h2>
+          <ul>
+            <li>/start → выбор роли: владелец или сотрудник.</li>
+            <li>Владелец создаёт компанию и точку.</li>
+            <li>Invite-код для сотрудников + роль по умолчанию.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>Мультиарендность</h2>
+          <ul>
+            <li>Каждая сущность имеет company_id.</li>
+            <li>Бот работает в контексте компании пользователя.</li>
+            <li>Запрет межтенантного доступа — строго.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Ядро: смены</h2>
+          <ul>
+            <li>Открытие/закрытие смены по чек-листам.</li>
+            <li>Фото, комментарии и касса — по политике.</li>
+            <li>Статусы: OPEN / CLOSED / EXPIRED.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>Политики и блокировки</h2>
+          <ul>
+            <li>Дедлайны закрытия и напоминания.</li>
+            <li>Тесты блокируют закрытие смены.</li>
+            <li>Все шаги управляются policy-флагами.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>Геймификация</h2>
+          <ul>
+            <li>Стрик закрытых смен вовремя.</li>
+            <li>Очки дисциплины + недельный статус.</li>
+            <li>Не отменяет блокировки.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Обучение и тесты</h2>
+          <ul>
+            <li>Разделы: рецепты, сервис, стандарты.</li>
+            <li>Monthly/Onboarding тесты в боте.</li>
+            <li>Конструктор тестов в вебе.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>Инциденты и финконтроль</h2>
+          <ul>
+            <li>ЧП с уровнями тревоги и фото.</li>
+            <li>Критичные инциденты → мгновенно владельцу.</li>
+            <li>Касса start/end, расчёт расхождения.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>График и аналитика</h2>
+          <ul>
+            <li>Планирование смен в вебе.</li>
+            <li>Бот показывает утверждённые смены.</li>
+            <li>Отчёты по сменам, ЧП и дисциплине.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="callout">
+        <span class="pill">MVP acceptance checklist</span>
+        <strong>Проверка готовности MVP</strong>
+        <p>
+          Владелец создаёт компанию и приглашает сотрудника, сотрудник открывает
+          и закрывает смену по политике, тесты блокируют закрытие, критичные
+          инциденты мгновенно видны владельцу, а график подтверждается через
+          веб-кабинет.
+        </p>
+        <div class="section-title">Проверка связи с Telegram API</div>
+        <div class="actions">
+          <button id="checkButton" type="button">Проверить токен бота</button>
+          <div id="status" class="status">Ждём отправки...</div>
+        </div>
+      </section>
+
+      <div class="footer">
+        Совет: храните все настройки и ограничения в политиках компании — это
+        ускорит внедрение новых модулей и интеграций.
       </div>
-      <div id="status" class="status">Ждём отправки...</div>
     </div>
 
     <script>

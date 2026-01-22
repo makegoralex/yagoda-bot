@@ -7,8 +7,11 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
+from src.web.mvp import router as mvp_router
+
 app = FastAPI()
 templates = Jinja2Templates(directory="src/web/templates")
+app.include_router(mvp_router)
 
 
 @app.get("/health")

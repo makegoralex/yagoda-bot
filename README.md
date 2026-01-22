@@ -27,5 +27,21 @@ http://localhost:8000/demo
 
 Нажмите кнопку — появится статус проверки токена.
 
+## Быстрый запуск Telegram-бота (онбординг владельца)
+Бот поддерживает /start диалог: владелец создаёт компанию и задаёт логин/пароль, сотрудник вводит invite-код.
+
+### 1) Запустите backend
+```bash
+uvicorn src.web.app:app --host 0.0.0.0 --port 8000
+```
+
+### 2) Запустите бота
+```bash
+export TELEGRAM_BOT_TOKEN="ваш_токен"
+export BACKEND_BASE_URL="http://localhost:8000"
+python -m src.bot.telegram_bot
+```
+
 ## Переменные окружения
 - `TELEGRAM_BOT_TOKEN` — токен бота от BotFather.
+- `BACKEND_BASE_URL` — адрес backend API (по умолчанию `http://localhost:8000`).

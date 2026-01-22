@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yagoda Bot Demo</title>
+    <style>
+      body {
+        font-family: "Inter", system-ui, -apple-system, sans-serif;
+        background: #f6f6fb;
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        color: #1d1f2b;
+      }
+
+      .card {
+        width: min(520px, 90vw);
+        background: white;
+        border-radius: 20px;
+        padding: 32px;
+        box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 28px;
+      }
+
+      p {
+        margin: 0 0 24px;
+        line-height: 1.5;
+      }
+
+      button {
+        border: none;
+        background: #2f67f6;
+        color: white;
+        font-size: 16px;
+        padding: 12px 18px;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 18px rgba(47, 103, 246, 0.3);
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .status {
+        margin-top: 18px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: #f0f3ff;
+        font-size: 14px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .status.error {
+        background: #ffecec;
+        color: #a61b1b;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Проверка связи с Telegram</h1>
+      <p>
+        Нажми кнопку — мы отправим тестовое сообщение в ваш Telegram-бот и
+        покажем статус ответа.
+      </p>
+      <div class="actions">
+        <button id="sendButton" type="button">Отправить тест в бот</button>
+        <button id="checkButton" type="button">Проверить токен бота</button>
+      </div>
+      <div id="status" class="status">Ждём отправки...</div>
+    </div>
+
+    <script>
+      const button = document.getElementById("sendButton");
+      const checkButton = document.getElementById("checkButton");
+      const statusBox = document.getElementById("status");
+
+      const setStatus = (text, isError = false) => {
+        statusBox.textContent = text;
+        statusBox.classList.toggle("error", isError);
+      };
+
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        checkButton.disabled = true;
+        setStatus("Отправляем сообщение в бот...");
+
+        try {
+          const response = await fetch("/api/send-test", { method: "POST" });
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.detail || "Ошибка отправки");
+          }
+
+          setStatus("Сообщение отправлено ✅ Проверьте чат в Telegram.");
+        } catch (error) {
+          setStatus(`Ошибка: ${error.message}`, true);
+        } finally {
+          button.disabled = false;
+          checkButton.disabled = false;
+        }
+      });
+
+      checkButton.addEventListener("click", async () => {
+        button.disabled = true;
+        checkButton.disabled = true;
+        setStatus("Проверяем токен бота...");
+
+        try {
+          const response = await fetch("/api/check-token", { method: "POST" });
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.detail || "Ошибка проверки токена");
+          }
+
+          const username = data.bot_username
+            ? `@${data.bot_username}`
+            : "бот";
+          setStatus(`Токен работает ✅ Ответил ${username}.`);
+        } catch (error) {
+          setStatus(`Ошибка: ${error.message}`, true);
+        } finally {
+          button.disabled = false;
+          checkButton.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

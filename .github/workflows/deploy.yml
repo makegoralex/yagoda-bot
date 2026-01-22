@@ -7,11 +7,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -21,4 +17,4 @@ jobs:
           script: |
             cd /home/yagoda_staff/yagoda-bot
             git pull
-            sudo systemctl restart yagoda-bot
+            sudo systemctl restart yagoda-web

@@ -80,18 +80,16 @@
     <div class="card">
       <h1>Проверка связи с Telegram</h1>
       <p>
-        Нажми кнопку — мы отправим тестовое сообщение в ваш Telegram-бот и
+        Нажми кнопку — мы проверим токен вашего бота через Telegram API и
         покажем статус ответа.
       </p>
       <div class="actions">
-        <button id="sendButton" type="button">Отправить тест в бот</button>
         <button id="checkButton" type="button">Проверить токен бота</button>
       </div>
       <div id="status" class="status">Ждём отправки...</div>
     </div>
 
     <script>
-      const button = document.getElementById("sendButton");
       const checkButton = document.getElementById("checkButton");
       const statusBox = document.getElementById("status");
 
@@ -100,30 +98,7 @@
         statusBox.classList.toggle("error", isError);
       };
 
-      button.addEventListener("click", async () => {
-        button.disabled = true;
-        checkButton.disabled = true;
-        setStatus("Отправляем сообщение в бот...");
-
-        try {
-          const response = await fetch("/api/send-test", { method: "POST" });
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.detail || "Ошибка отправки");
-          }
-
-          setStatus("Сообщение отправлено ✅ Проверьте чат в Telegram.");
-        } catch (error) {
-          setStatus(`Ошибка: ${error.message}`, true);
-        } finally {
-          button.disabled = false;
-          checkButton.disabled = false;
-        }
-      });
-
       checkButton.addEventListener("click", async () => {
-        button.disabled = true;
         checkButton.disabled = true;
         setStatus("Проверяем токен бота...");
 
@@ -142,7 +117,6 @@
         } catch (error) {
           setStatus(`Ошибка: ${error.message}`, true);
         } finally {
-          button.disabled = false;
           checkButton.disabled = false;
         }
       });

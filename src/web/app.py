@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
 
 import requests
 from fastapi import FastAPI, HTTPException, Request
@@ -30,48 +29,6 @@ def _get_required_env(name: str) -> str:
             detail=f"Missing required environment variable: {name}",
         )
     return value
-
-
-@app.post("/api/send-test")
-def send_test_message() -> JSONResponse:
-    token = _get_required_env("TELEGRAM_BOT_TOKEN")
-    chat_id = _get_required_env("TELEGRAM_CHAT_ID")
-
-    payload = {
-        "chat_id": chat_id,
-        "text": (
-            "✅ Проверка связи сайта и бота. "
-            f"Время: {datetime.now(timezone.utc).isoformat()}"
-        ),
-    }
-
-    response = requests.post(
-        f"https://api.telegram.org/bot{token}/sendMessage",
-        json=payload,
-        timeout=10,
-    )
-
-    if not response.ok:
-        detail = response.text
-        try:
-            payload = response.json()
-            detail = payload.get("description", detail)
-            if payload.get("error_code") == 403 and "bots can't send messages to bots" in detail:
-                detail = (
-                    f"{detail}. Укажите chat_id пользователя или группы, а не бота."
-                )
-        except ValueError:
-            pass
-
-        raise HTTPException(status_code=500, detail=detail)
-
-    return JSONResponse(
-        {
-            "status": "ok",
-            "telegram_status": response.status_code,
-            "telegram_response": response.json(),
-        }
-    )
 
 
 @app.post("/api/check-token")

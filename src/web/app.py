@@ -52,7 +52,18 @@ def send_test_message() -> JSONResponse:
     )
 
     if not response.ok:
-        raise HTTPException(status_code=500, detail=response.text)
+        detail = response.text
+        try:
+            payload = response.json()
+            detail = payload.get("description", detail)
+            if payload.get("error_code") == 403 and "bots can't send messages to bots" in detail:
+                detail = (
+                    f"{detail}. Укажите chat_id пользователя или группы, а не бота."
+                )
+        except ValueError:
+            pass
+
+        raise HTTPException(status_code=500, detail=detail)
 
     return JSONResponse(
         {

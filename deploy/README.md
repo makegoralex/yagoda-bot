@@ -22,3 +22,13 @@ chmod +x deploy/install_native_systemd.sh
 This creates two services:
 - `yagoda-backend.service` (uvicorn)
 - `yagoda-bot-native.service` (telegram bot)
+
+## GitHub Actions autodeploy
+This repo includes a GitHub Actions workflow that deploys on every push to `main`.
+
+Required repository secrets:
+- `SERVER_IP` — server IP address
+- `SERVER_USER` — SSH username
+- `SSH_PRIVATE_KEY` — private key with access to the server
+
+The workflow runs `./deploy/install_native_systemd.sh` on the server after `git pull`.

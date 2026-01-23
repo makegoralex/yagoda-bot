@@ -35,6 +35,14 @@ chmod +x deploy/install_native_systemd.sh
 ./deploy/install_native_systemd.sh
 ```
 
+### Автодеплой через GitHub Actions
+В репозитории есть workflow автодеплоя на сервер при каждом push в `main`.
+Нужно добавить секреты в репозиторий:
+- `SERVER_IP`
+- `SERVER_USER`
+- `SSH_PRIVATE_KEY`
+Подробнее в `deploy/README.md`.
+
 ## Если бот молчит после перезапуска
 Бот работает через `getUpdates`. Если у бота был настроен webhook, Telegram перестает отдавать апдейты.
 Сбросьте webhook:

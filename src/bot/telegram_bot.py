@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import os
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
 import requests
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
 @dataclass
@@ -21,11 +24,46 @@ class BotClient:
         self.backend_base_url = backend_base_url.rstrip("/")
         self.api_url = f"https://api.telegram.org/bot{token}"
         self.sessions: dict[int, Session] = {}
+        self._ensure_long_polling()
+        self._log_startup_diagnostics()
 
-    def send_message(self, chat_id: int, text: str) -> None:
+    def _ensure_long_polling(self) -> None:
+        try:
+            requests.post(
+                f"{self.api_url}/deleteWebhook",
+                json={"drop_pending_updates": True},
+                timeout=10,
+            )
+        except requests.RequestException:
+            logging.exception("Failed to clear webhook for long polling")
+
+    def _log_startup_diagnostics(self) -> None:
+        try:
+            response = requests.get(f"{self.api_url}/getMe", timeout=10)
+            if response.ok:
+                username = response.json().get("result", {}).get("username")
+                logging.info("Bot connected as @%s", username)
+            else:
+                logging.warning("getMe failed: %s", response.text)
+        except requests.RequestException:
+            logging.exception("getMe request failed")
+
+        try:
+            response = requests.get(f"{self.api_url}/getWebhookInfo", timeout=10)
+            if response.ok:
+                logging.info("Webhook info: %s", response.json())
+            else:
+                logging.warning("getWebhookInfo failed: %s", response.text)
+        except requests.RequestException:
+            logging.exception("getWebhookInfo request failed")
+
+    def send_message(self, chat_id: int, text: str, reply_markup: dict[str, Any] | None = None) -> None:
+        payload: dict[str, Any] = {"chat_id": chat_id, "text": text}
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
         requests.post(
             f"{self.api_url}/sendMessage",
-            json={"chat_id": chat_id, "text": text},
+            json=payload,
             timeout=10,
         )
 
@@ -41,13 +79,24 @@ class BotClient:
         self.sessions[user_id] = session
         return session
 
-    def handle_start(self, chat_id: int, user_id: int) -> None:
+    def _send_role_prompt(self, chat_id: int, user_id: int) -> None:
         session = self._reset_session(user_id)
         session.step = "choose_role"
+        keyboard = {
+            "inline_keyboard": [
+                [{"text": "Владелец", "callback_data": "role_owner"}],
+                [{"text": "Сотрудник", "callback_data": "role_staff"}],
+            ]
+        }
         self.send_message(
             chat_id,
-            "Привет! Вы владелец/админ или сотрудник? Напишите: владелец или сотрудник.",
+            "Автодеплой работает ✅ (обновление 2026-01-23)\n"
+            "Привет! Вы владелец/админ или сотрудник?",
+            reply_markup=keyboard,
         )
+
+    def handle_start(self, chat_id: int, user_id: int) -> None:
+        self._send_role_prompt(chat_id, user_id)
 
     def handle_message(self, chat_id: int, user_id: int, text: str) -> None:
         message = text.strip()
@@ -67,8 +116,14 @@ class BotClient:
                 session.step = "staff_invite"
                 self.send_message(chat_id, "Введите invite-код компании.")
                 return
-            self.send_message(chat_id, "Пожалуйста, напишите: владелец или сотрудник.")
+            self.send_message(chat_id, "Пожалуйста, выберите роль кнопкой ниже.")
+            self._send_role_prompt(chat_id, user_id)
             return
+
+        if session.step and session.step.startswith("owner_") and not session.role:
+            session.role = "owner"
+        if session.step and session.step.startswith("staff_") and not session.role:
+            session.role = "staff"
 
         if session.role == "owner":
             self._handle_owner_flow(chat_id, user_id, session, message)
@@ -78,6 +133,28 @@ class BotClient:
             self._handle_staff_flow(chat_id, user_id, session, message)
             return
 
+        self._send_role_prompt(chat_id, user_id)
+
+    def _answer_callback(self, callback_id: str) -> None:
+        requests.post(
+            f"{self.api_url}/answerCallbackQuery",
+            json={"callback_query_id": callback_id},
+            timeout=10,
+        )
+
+    def handle_callback(self, chat_id: int, user_id: int, data: str, callback_id: str) -> None:
+        self._answer_callback(callback_id)
+        session = self._get_session(user_id)
+        if data == "role_owner":
+            session.role = "owner"
+            session.step = "owner_company"
+            self.send_message(chat_id, "Введите название компании.")
+            return
+        if data == "role_staff":
+            session.role = "staff"
+            session.step = "staff_invite"
+            self.send_message(chat_id, "Введите invite-код компании.")
+            return
         self.send_message(chat_id, "Напишите /start, чтобы начать.")
 
     def _handle_owner_flow(
@@ -188,11 +265,22 @@ class BotClient:
                 timeout=40,
             )
             if not response.ok:
+                logging.warning("getUpdates failed: %s", response.text)
                 time.sleep(2)
                 continue
             payload = response.json()
             for update in payload.get("result", []):
                 offset = update["update_id"] + 1
+                callback = update.get("callback_query")
+                if callback:
+                    message = callback.get("message") or {}
+                    chat_id = message.get("chat", {}).get("id")
+                    user_id = callback.get("from", {}).get("id")
+                    data = callback.get("data")
+                    callback_id = callback.get("id")
+                    if chat_id and user_id and data and callback_id:
+                        self.handle_callback(chat_id, user_id, data, callback_id)
+                    continue
                 message = update.get("message")
                 if not message or "text" not in message:
                     continue

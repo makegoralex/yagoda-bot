@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from src.web.mvp import router as mvp_router
+from src.web.mvp import store
 
 app = FastAPI()
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
@@ -22,7 +23,12 @@ def health_check() -> dict[str, str]:
 
 @app.get("/demo", response_class=HTMLResponse)
 def demo_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("demo.html", {"request": request})
+    companies = list(store.companies.values())
+    users = list(store.users.values())
+    return templates.TemplateResponse(
+        "demo.html",
+        {"request": request, "companies": companies, "users": users},
+    )
 
 
 def _get_required_env(name: str) -> str:

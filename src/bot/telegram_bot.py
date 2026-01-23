@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import os
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
 import requests
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
 @dataclass
@@ -22,16 +25,37 @@ class BotClient:
         self.api_url = f"https://api.telegram.org/bot{token}"
         self.sessions: dict[int, Session] = {}
         self._ensure_long_polling()
+        self._log_startup_diagnostics()
 
     def _ensure_long_polling(self) -> None:
         try:
             requests.post(
-                f"{self.api_url}/setWebhook",
-                json={"url": ""},
+                f"{self.api_url}/deleteWebhook",
+                json={"drop_pending_updates": True},
                 timeout=10,
             )
         except requests.RequestException:
-            pass
+            logging.exception("Failed to clear webhook for long polling")
+
+    def _log_startup_diagnostics(self) -> None:
+        try:
+            response = requests.get(f"{self.api_url}/getMe", timeout=10)
+            if response.ok:
+                username = response.json().get("result", {}).get("username")
+                logging.info("Bot connected as @%s", username)
+            else:
+                logging.warning("getMe failed: %s", response.text)
+        except requests.RequestException:
+            logging.exception("getMe request failed")
+
+        try:
+            response = requests.get(f"{self.api_url}/getWebhookInfo", timeout=10)
+            if response.ok:
+                logging.info("Webhook info: %s", response.json())
+            else:
+                logging.warning("getWebhookInfo failed: %s", response.text)
+        except requests.RequestException:
+            logging.exception("getWebhookInfo request failed")
 
     def send_message(self, chat_id: int, text: str) -> None:
         requests.post(
@@ -199,6 +223,7 @@ class BotClient:
                 timeout=40,
             )
             if not response.ok:
+                logging.warning("getUpdates failed: %s", response.text)
                 time.sleep(2)
                 continue
             payload = response.json()

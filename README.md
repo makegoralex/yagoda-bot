@@ -22,6 +22,13 @@ docker compose down
 
 Backend будет доступен на `http://localhost:8000`.
 
+### Автозапуск на сервере (systemd)
+Для автозапуска при ребуте используйте скрипт:
+```bash
+chmod +x deploy/install_systemd.sh
+./deploy/install_systemd.sh
+```
+
 ## Если бот молчит после перезапуска
 Бот работает через `getUpdates`. Если у бота был настроен webhook, Telegram перестает отдавать апдейты.
 Сбросьте webhook:

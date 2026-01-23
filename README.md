@@ -1,6 +1,55 @@
 # yagoda-bot
 Бот управления кофейней.
 
+## Быстрый автозапуск (Docker Compose)
+Этот вариант запускает backend и Telegram-бота одной командой.
+
+### 1) Подготовьте .env
+```bash
+cp .env.example .env
+```
+Откройте `.env` и вставьте `TELEGRAM_BOT_TOKEN`.
+
+### 2) Запуск
+```bash
+docker compose up -d --build
+```
+
+### 3) Остановка
+```bash
+docker compose down
+```
+
+Backend будет доступен на `http://localhost:8000`.
+
+### Автозапуск на сервере (systemd)
+Для автозапуска при ребуте используйте скрипт:
+```bash
+chmod +x deploy/install_systemd.sh
+./deploy/install_systemd.sh
+```
+
+Если Docker не установлен, используйте нативные systemd-сервисы:
+```bash
+chmod +x deploy/install_native_systemd.sh
+./deploy/install_native_systemd.sh
+```
+
+### Автодеплой через GitHub Actions
+В репозитории есть workflow автодеплоя на сервер при каждом push в `main`.
+Нужно добавить секреты в репозиторий:
+- `SERVER_IP`
+- `SERVER_USER`
+- `SSH_PRIVATE_KEY`
+Подробнее в `deploy/README.md`.
+
+## Если бот молчит после перезапуска
+Бот работает через `getUpdates`. Если у бота был настроен webhook, Telegram перестает отдавать апдейты.
+Сбросьте webhook:
+```bash
+curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url="
+```
+
 ## Быстрая проверка связки сайт → бот
 Ниже минимальный веб-сервер с кнопкой, которая проверяет токен бота через Telegram API.
 

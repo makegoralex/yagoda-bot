@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import requests
 from fastapi import FastAPI, HTTPException, Request
@@ -10,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from src.web.mvp import router as mvp_router
 
 app = FastAPI()
-templates = Jinja2Templates(directory="src/web/templates")
+templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 app.include_router(mvp_router)
 
 

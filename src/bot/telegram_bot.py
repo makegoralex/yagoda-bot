@@ -21,6 +21,17 @@ class BotClient:
         self.backend_base_url = backend_base_url.rstrip("/")
         self.api_url = f"https://api.telegram.org/bot{token}"
         self.sessions: dict[int, Session] = {}
+        self._ensure_long_polling()
+
+    def _ensure_long_polling(self) -> None:
+        try:
+            requests.post(
+                f"{self.api_url}/setWebhook",
+                json={"url": ""},
+                timeout=10,
+            )
+        except requests.RequestException:
+            pass
 
     def send_message(self, chat_id: int, text: str) -> None:
         requests.post(

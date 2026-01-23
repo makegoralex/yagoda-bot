@@ -17,4 +17,5 @@ jobs:
           script: |
             cd /home/yagoda_staff/yagoda-bot
             git pull
-            sudo systemctl restart yagoda-web
+            chmod +x deploy/install_user_systemd.sh
+            ./deploy/install_user_systemd.sh

@@ -57,10 +57,13 @@ class BotClient:
         except requests.RequestException:
             logging.exception("getWebhookInfo request failed")
 
-    def send_message(self, chat_id: int, text: str) -> None:
+    def send_message(self, chat_id: int, text: str, reply_markup: dict[str, Any] | None = None) -> None:
+        payload: dict[str, Any] = {"chat_id": chat_id, "text": text}
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
         requests.post(
             f"{self.api_url}/sendMessage",
-            json={"chat_id": chat_id, "text": text},
+            json=payload,
             timeout=10,
         )
 
@@ -79,10 +82,17 @@ class BotClient:
     def handle_start(self, chat_id: int, user_id: int) -> None:
         session = self._reset_session(user_id)
         session.step = "choose_role"
+        keyboard = {
+            "inline_keyboard": [
+                [{"text": "Владелец", "callback_data": "role_owner"}],
+                [{"text": "Сотрудник", "callback_data": "role_staff"}],
+            ]
+        }
         self.send_message(
             chat_id,
             "Автодеплой работает ✅ (обновление 2026-01-23)\n"
-            "Привет! Вы владелец/админ или сотрудник? Напишите: владелец или сотрудник.",
+            "Привет! Вы владелец/админ или сотрудник?",
+            reply_markup=keyboard,
         )
 
     def handle_message(self, chat_id: int, user_id: int, text: str) -> None:
@@ -114,6 +124,28 @@ class BotClient:
             self._handle_staff_flow(chat_id, user_id, session, message)
             return
 
+        self.send_message(chat_id, "Напишите /start, чтобы начать.")
+
+    def _answer_callback(self, callback_id: str) -> None:
+        requests.post(
+            f"{self.api_url}/answerCallbackQuery",
+            json={"callback_query_id": callback_id},
+            timeout=10,
+        )
+
+    def handle_callback(self, chat_id: int, user_id: int, data: str, callback_id: str) -> None:
+        self._answer_callback(callback_id)
+        session = self._get_session(user_id)
+        if data == "role_owner":
+            session.role = "owner"
+            session.step = "owner_company"
+            self.send_message(chat_id, "Введите название компании.")
+            return
+        if data == "role_staff":
+            session.role = "staff"
+            session.step = "staff_invite"
+            self.send_message(chat_id, "Введите invite-код компании.")
+            return
         self.send_message(chat_id, "Напишите /start, чтобы начать.")
 
     def _handle_owner_flow(
@@ -230,6 +262,16 @@ class BotClient:
             payload = response.json()
             for update in payload.get("result", []):
                 offset = update["update_id"] + 1
+                callback = update.get("callback_query")
+                if callback:
+                    message = callback.get("message") or {}
+                    chat_id = message.get("chat", {}).get("id")
+                    user_id = callback.get("from", {}).get("id")
+                    data = callback.get("data")
+                    callback_id = callback.get("id")
+                    if chat_id and user_id and data and callback_id:
+                        self.handle_callback(chat_id, user_id, data, callback_id)
+                    continue
                 message = update.get("message")
                 if not message or "text" not in message:
                     continue

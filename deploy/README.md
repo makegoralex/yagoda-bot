@@ -31,4 +31,11 @@ Required repository secrets:
 - `SERVER_USER` — SSH username
 - `SSH_PRIVATE_KEY` — private key with access to the server
 
-The workflow runs `./deploy/install_native_systemd.sh` on the server after `git pull`.
+The workflow runs `./deploy/install_user_systemd.sh` on the server after `git pull` (no sudo).
+
+### One-time setup for user services
+User services require lingering to keep running after logout:
+```bash
+chmod +x deploy/enable_linger.sh
+./deploy/enable_linger.sh
+```

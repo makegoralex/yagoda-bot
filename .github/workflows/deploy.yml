@@ -17,5 +17,5 @@ jobs:
           script: |
             cd /home/yagoda_staff/yagoda-bot
             git pull
-            chmod +x deploy/install_native_systemd.sh
-            ./deploy/install_native_systemd.sh
+            chmod +x deploy/install_user_systemd.sh
+            ./deploy/install_user_systemd.sh

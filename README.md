@@ -43,6 +43,13 @@ chmod +x deploy/install_native_systemd.sh
 - `SSH_PRIVATE_KEY`
 Подробнее в `deploy/README.md`.
 
+Для автодеплоя без sudo используется пользовательский systemd.
+Один раз включите linger на сервере:
+```bash
+chmod +x deploy/enable_linger.sh
+./deploy/enable_linger.sh
+```
+
 ## Если бот молчит после перезапуска
 Бот работает через `getUpdates`. Если у бота был настроен webhook, Telegram перестает отдавать апдейты.
 Сбросьте webhook:

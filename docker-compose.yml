@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  backend:
+    build: .
+    command: uvicorn src.web.app:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+
+  bot:
+    build: .
+    command: python -m src.bot.telegram_bot
+    depends_on:
+      - backend
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      BACKEND_BASE_URL: http://backend:8000

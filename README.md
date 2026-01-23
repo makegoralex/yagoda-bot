@@ -29,6 +29,12 @@ chmod +x deploy/install_systemd.sh
 ./deploy/install_systemd.sh
 ```
 
+Если Docker не установлен, используйте нативные systemd-сервисы:
+```bash
+chmod +x deploy/install_native_systemd.sh
+./deploy/install_native_systemd.sh
+```
+
 ## Если бот молчит после перезапуска
 Бот работает через `getUpdates`. Если у бота был настроен webhook, Telegram перестает отдавать апдейты.
 Сбросьте webhook:

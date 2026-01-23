@@ -156,11 +156,44 @@
         font-size: 13px;
         color: #5b6b8b;
       }
+
+      .deploy-banner {
+        background: #0f172a;
+        color: #f8fafc;
+        padding: 10px 14px;
+        border-radius: 12px;
+        font-size: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        width: fit-content;
+      }
+
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      .data-table th,
+      .data-table td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid #e6e9f2;
+      }
+
+      .empty-hint {
+        font-size: 14px;
+        color: #5b6b8b;
+      }
     </style>
   </head>
   <body>
     <div class="page">
       <header>
+        <div class="deploy-banner">
+          🚀 Автодеплой работает: обновление от 2026-01-23
+        </div>
         <span class="eyebrow">SaaS / Telegram bot + Admin Web</span>
         <h1>Yagoda Bot — спецификация MVP для управления сменами и персоналом</h1>
         <p>
@@ -264,6 +297,59 @@
         <div class="actions">
           <button id="checkButton" type="button">Проверить токен бота</button>
           <div id="status" class="status">Ждём отправки...</div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Созданные организации</h2>
+          {% if companies %}
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Название</th>
+                <th>Часовой пояс</th>
+                <th>ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for company in companies %}
+              <tr>
+                <td>{{ company.name }}</td>
+                <td>{{ company.timezone }}</td>
+                <td>{{ company.id }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="empty-hint">Пока нет организаций. Создайте владельца через бота.</p>
+          {% endif %}
+        </div>
+        <div class="card">
+          <h2>Пользователи</h2>
+          {% if users %}
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Имя</th>
+                <th>Роль</th>
+                <th>Компания</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for user in users %}
+              <tr>
+                <td>{{ user.name }}</td>
+                <td>{{ user.role }}</td>
+                <td>{{ user.company_id }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="empty-hint">Пока нет пользователей. Пройдите онбординг в боте.</p>
+          {% endif %}
         </div>
       </section>
 

@@ -79,7 +79,7 @@ class BotClient:
         self.sessions[user_id] = session
         return session
 
-    def handle_start(self, chat_id: int, user_id: int) -> None:
+    def _send_role_prompt(self, chat_id: int, user_id: int) -> None:
         session = self._reset_session(user_id)
         session.step = "choose_role"
         keyboard = {
@@ -94,6 +94,9 @@ class BotClient:
             "Привет! Вы владелец/админ или сотрудник?",
             reply_markup=keyboard,
         )
+
+    def handle_start(self, chat_id: int, user_id: int) -> None:
+        self._send_role_prompt(chat_id, user_id)
 
     def handle_message(self, chat_id: int, user_id: int, text: str) -> None:
         message = text.strip()
@@ -113,8 +116,14 @@ class BotClient:
                 session.step = "staff_invite"
                 self.send_message(chat_id, "Введите invite-код компании.")
                 return
-            self.send_message(chat_id, "Пожалуйста, напишите: владелец или сотрудник.")
+            self.send_message(chat_id, "Пожалуйста, выберите роль кнопкой ниже.")
+            self._send_role_prompt(chat_id, user_id)
             return
+
+        if session.step and session.step.startswith("owner_") and not session.role:
+            session.role = "owner"
+        if session.step and session.step.startswith("staff_") and not session.role:
+            session.role = "staff"
 
         if session.role == "owner":
             self._handle_owner_flow(chat_id, user_id, session, message)
@@ -124,6 +133,28 @@ class BotClient:
             self._handle_staff_flow(chat_id, user_id, session, message)
             return
 
+        self._send_role_prompt(chat_id, user_id)
+
+    def _answer_callback(self, callback_id: str) -> None:
+        requests.post(
+            f"{self.api_url}/answerCallbackQuery",
+            json={"callback_query_id": callback_id},
+            timeout=10,
+        )
+
+    def handle_callback(self, chat_id: int, user_id: int, data: str, callback_id: str) -> None:
+        self._answer_callback(callback_id)
+        session = self._get_session(user_id)
+        if data == "role_owner":
+            session.role = "owner"
+            session.step = "owner_company"
+            self.send_message(chat_id, "Введите название компании.")
+            return
+        if data == "role_staff":
+            session.role = "staff"
+            session.step = "staff_invite"
+            self.send_message(chat_id, "Введите invite-код компании.")
+            return
         self.send_message(chat_id, "Напишите /start, чтобы начать.")
 
     def _answer_callback(self, callback_id: str) -> None:

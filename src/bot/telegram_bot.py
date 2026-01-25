@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+import json
 import logging
 import time
+import sqlite3
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -16,6 +18,68 @@ class Session:
     role: str | None = None
     step: str | None = None
     data: dict[str, Any] = field(default_factory=dict)
+    last_update_id: int | None = None
+
+
+class SessionStorage:
+    def __init__(self, db_path: str) -> None:
+        self.db_path = db_path
+        os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
+        self.connection = sqlite3.connect(self.db_path, check_same_thread=False)
+        self._ensure_schema()
+
+    def _ensure_schema(self) -> None:
+        with self.connection:
+            self.connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS sessions (
+                    user_id INTEGER PRIMARY KEY,
+                    role TEXT,
+                    step TEXT,
+                    data TEXT,
+                    last_update_id INTEGER
+                )
+                """,
+            )
+
+    def load_session(self, user_id: int) -> Session:
+        cursor = self.connection.execute(
+            "SELECT role, step, data, last_update_id FROM sessions WHERE user_id = ?",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return Session()
+        role, step, data_raw, last_update_id = row
+        data = json.loads(data_raw) if data_raw else {}
+        return Session(
+            role=role,
+            step=step,
+            data=data,
+            last_update_id=last_update_id,
+        )
+
+    def save_session(self, user_id: int, session: Session) -> None:
+        data_raw = json.dumps(session.data, ensure_ascii=False)
+        with self.connection:
+            self.connection.execute(
+                """
+                INSERT INTO sessions (user_id, role, step, data, last_update_id)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    role = excluded.role,
+                    step = excluded.step,
+                    data = excluded.data,
+                    last_update_id = excluded.last_update_id
+                """,
+                (
+                    user_id,
+                    session.role,
+                    session.step,
+                    data_raw,
+                    session.last_update_id,
+                ),
+            )
 
 
 class BotClient:
@@ -23,7 +87,8 @@ class BotClient:
         self.token = token
         self.backend_base_url = backend_base_url.rstrip("/")
         self.api_url = f"https://api.telegram.org/bot{token}"
-        self.sessions: dict[int, Session] = {}
+        session_db_path = os.getenv("SESSION_DB_PATH", "data/telegram_sessions.db")
+        self.session_storage = SessionStorage(session_db_path)
         self._ensure_long_polling()
         self._log_startup_diagnostics()
 
@@ -67,20 +132,16 @@ class BotClient:
             timeout=10,
         )
 
-    def _get_session(self, user_id: int) -> Session:
-        session = self.sessions.get(user_id)
-        if not session:
-            session = Session()
-            self.sessions[user_id] = session
-        return session
+    def _load_session(self, user_id: int) -> Session:
+        return self.session_storage.load_session(user_id)
 
-    def _reset_session(self, user_id: int) -> Session:
-        session = Session()
-        self.sessions[user_id] = session
-        return session
+    def _save_session(self, user_id: int, session: Session) -> None:
+        self.session_storage.save_session(user_id, session)
 
-    def _send_role_prompt(self, chat_id: int, user_id: int, reset_session: bool = False) -> None:
-        session = self._reset_session(user_id) if reset_session else self._get_session(user_id)
+    def _reset_session(self) -> Session:
+        return Session()
+
+    def _send_role_prompt(self, chat_id: int, session: Session) -> Session:
         session.step = "choose_role"
         session.role = None
         keyboard = {
@@ -97,16 +158,73 @@ class BotClient:
             "Привет! Вы владелец/админ или сотрудник?",
             reply_markup=keyboard,
         )
+        return session
 
-    def handle_start(self, chat_id: int, user_id: int) -> None:
-        self._send_role_prompt(chat_id, user_id, reset_session=True)
+    def _repeat_current_question(self, chat_id: int, session: Session) -> Session:
+        if session.step in (None, "choose_role"):
+            return self._send_role_prompt(chat_id, session)
+        if session.step == "owner_company":
+            self.send_message(chat_id, "Введите название компании.")
+            return session
+        if session.step == "owner_name":
+            self.send_message(chat_id, "Введите ваше имя.")
+            return session
+        if session.step == "owner_username":
+            self.send_message(chat_id, "Придумайте логин для веб-кабинета.")
+            return session
+        if session.step == "owner_password":
+            self.send_message(chat_id, "Придумайте пароль для веб-кабинета.")
+            return session
+        if session.step == "owner_timezone":
+            self.send_message(
+                chat_id,
+                "Введите таймзону (например, Europe/Moscow) или отправьте '-' чтобы оставить по умолчанию.",
+            )
+            return session
+        if session.step == "owner_location":
+            self.send_message(
+                chat_id,
+                "Введите название точки (или отправьте '-' чтобы пропустить).",
+            )
+            return session
+        if session.step == "staff_invite":
+            self.send_message(chat_id, "Введите invite-код компании.")
+            return session
+        if session.step == "staff_name":
+            self.send_message(chat_id, "Введите ваше имя.")
+            return session
+        self.send_message(chat_id, "Напишите /start, чтобы начать.")
+        return session
 
-    def handle_message(self, chat_id: int, user_id: int, text: str) -> None:
+    def _log_update_state(
+        self,
+        stage: str,
+        update_id: int,
+        update_type: str,
+        chat_id: int | None,
+        user_id: int | None,
+        session: Session | None,
+    ) -> None:
+        logging.info(
+            "Update %s: update_id=%s type=%s chat_id=%s user_id=%s session_role=%s session_step=%s last_update_id=%s",
+            stage,
+            update_id,
+            update_type,
+            chat_id,
+            user_id,
+            session.role if session else None,
+            session.step if session else None,
+            session.last_update_id if session else None,
+        )
+
+    def handle_start(self, chat_id: int, session: Session) -> Session:
+        session = self._reset_session()
+        return self._send_role_prompt(chat_id, session)
+
+    def handle_message(self, chat_id: int, user_id: int, text: str, session: Session) -> Session:
         message = text.strip()
-        session = self._get_session(user_id)
         if message.lower() == "/start":
-            self.handle_start(chat_id, user_id)
-            return
+            return self.handle_start(chat_id, session)
 
         role_choice = self._parse_role_choice(message)
         if session.step == "choose_role" or (not session.role and role_choice):
@@ -114,15 +232,14 @@ class BotClient:
                 session.role = "owner"
                 session.step = "owner_company"
                 self.send_message(chat_id, "Введите название компании.")
-                return
+                return session
             if role_choice == "staff":
                 session.role = "staff"
                 session.step = "staff_invite"
                 self.send_message(chat_id, "Введите invite-код компании.")
-                return
+                return session
             self.send_message(chat_id, "Пожалуйста, выберите роль кнопкой ниже.")
-            self._send_role_prompt(chat_id, user_id)
-            return
+            return self._send_role_prompt(chat_id, session)
 
         if session.step and session.step.startswith("owner_") and not session.role:
             session.role = "owner"
@@ -130,14 +247,12 @@ class BotClient:
             session.role = "staff"
 
         if session.role == "owner":
-            self._handle_owner_flow(chat_id, user_id, session, message)
-            return
+            return self._handle_owner_flow(chat_id, user_id, session, message)
 
         if session.role == "staff":
-            self._handle_staff_flow(chat_id, user_id, session, message)
-            return
+            return self._handle_staff_flow(chat_id, user_id, session, message)
 
-        self._send_role_prompt(chat_id, user_id)
+        return self._repeat_current_question(chat_id, session)
 
     def _answer_callback(self, callback_id: str) -> None:
         requests.post(
@@ -146,20 +261,19 @@ class BotClient:
             timeout=10,
         )
 
-    def handle_callback(self, chat_id: int, user_id: int, data: str, callback_id: str) -> None:
+    def handle_callback(self, chat_id: int, user_id: int, data: str, callback_id: str, session: Session) -> Session:
         self._answer_callback(callback_id)
-        session = self._get_session(user_id)
         if data == "role_owner":
             session.role = "owner"
             session.step = "owner_company"
             self.send_message(chat_id, "Введите название компании.")
-            return
+            return session
         if data == "role_staff":
             session.role = "staff"
             session.step = "staff_invite"
             self.send_message(chat_id, "Введите invite-код компании.")
-            return
-        self.send_message(chat_id, "Напишите /start, чтобы начать.")
+            return session
+        return self._repeat_current_question(chat_id, session)
 
     def _parse_role_choice(self, message: str) -> str | None:
         lowered = message.lower()
@@ -175,22 +289,22 @@ class BotClient:
         user_id: int,
         session: Session,
         message: str,
-    ) -> None:
+    ) -> Session:
         if session.step == "owner_company":
             session.data["company_name"] = message
             session.step = "owner_name"
             self.send_message(chat_id, "Введите ваше имя.")
-            return
+            return session
         if session.step == "owner_name":
             session.data["owner_name"] = message
             session.step = "owner_username"
             self.send_message(chat_id, "Придумайте логин для веб-кабинета.")
-            return
+            return session
         if session.step == "owner_username":
             session.data["username"] = message
             session.step = "owner_password"
             self.send_message(chat_id, "Придумайте пароль для веб-кабинета.")
-            return
+            return session
         if session.step == "owner_password":
             session.data["password"] = message
             session.step = "owner_timezone"
@@ -198,7 +312,7 @@ class BotClient:
                 chat_id,
                 "Введите таймзону (например, Europe/Moscow) или отправьте '-' чтобы оставить по умолчанию.",
             )
-            return
+            return session
         if session.step == "owner_timezone":
             timezone = None if message.strip() == "-" else message
             session.data["timezone"] = timezone
@@ -207,7 +321,7 @@ class BotClient:
                 chat_id,
                 "Введите название точки (или отправьте '-' чтобы пропустить).",
             )
-            return
+            return session
         if session.step == "owner_location":
             location_name = None if message.strip() == "-" else message
             payload = {
@@ -235,13 +349,11 @@ class BotClient:
                     f"Invite-код для сотрудников: {invite_code}\n"
                     "Логин/пароль для веб-кабинета сохранены.",
                 )
-                self._reset_session(user_id)
-                return
+                return self._reset_session()
             self.send_message(chat_id, f"Ошибка онбординга: {response.text}")
-            self._reset_session(user_id)
-            return
+            return self._reset_session()
 
-        self.send_message(chat_id, "Напишите /start, чтобы начать сначала.")
+        return self._repeat_current_question(chat_id, session)
 
     def _handle_staff_flow(
         self,
@@ -249,12 +361,12 @@ class BotClient:
         user_id: int,
         session: Session,
         message: str,
-    ) -> None:
+    ) -> Session:
         if session.step == "staff_invite":
             session.data["invite_code"] = message
             session.step = "staff_name"
             self.send_message(chat_id, "Введите ваше имя.")
-            return
+            return session
         if session.step == "staff_name":
             payload = {
                 "code": session.data["invite_code"],
@@ -272,13 +384,11 @@ class BotClient:
                     chat_id,
                     f"Готово ✅ Вы добавлены как {role}.",
                 )
-                self._reset_session(user_id)
-                return
+                return self._reset_session()
             self.send_message(chat_id, f"Ошибка invite-кода: {response.text}")
-            self._reset_session(user_id)
-            return
+            return self._reset_session()
 
-        self.send_message(chat_id, "Напишите /start, чтобы начать сначала.")
+        return self._repeat_current_question(chat_id, session)
 
     def run(self) -> None:
         offset: int | None = None
@@ -303,14 +413,72 @@ class BotClient:
                     data = callback.get("data")
                     callback_id = callback.get("id")
                     if chat_id and user_id and data and callback_id:
-                        self.handle_callback(chat_id, user_id, data, callback_id)
+                        session = self._load_session(user_id)
+                        if session.last_update_id is not None and update["update_id"] <= session.last_update_id:
+                            self._log_update_state(
+                                "ignored",
+                                update["update_id"],
+                                "callback",
+                                chat_id,
+                                user_id,
+                                session,
+                            )
+                            continue
+                        self._log_update_state(
+                            "before",
+                            update["update_id"],
+                            "callback",
+                            chat_id,
+                            user_id,
+                            session,
+                        )
+                        session = self.handle_callback(chat_id, user_id, data, callback_id, session)
+                        session.last_update_id = update["update_id"]
+                        self._save_session(user_id, session)
+                        self._log_update_state(
+                            "after",
+                            update["update_id"],
+                            "callback",
+                            chat_id,
+                            user_id,
+                            session,
+                        )
                     continue
                 message = update.get("message")
                 if not message or "text" not in message:
                     continue
                 chat_id = message["chat"]["id"]
                 user_id = message["from"]["id"]
-                self.handle_message(chat_id, user_id, message["text"])
+                session = self._load_session(user_id)
+                if session.last_update_id is not None and update["update_id"] <= session.last_update_id:
+                    self._log_update_state(
+                        "ignored",
+                        update["update_id"],
+                        "message",
+                        chat_id,
+                        user_id,
+                        session,
+                    )
+                    continue
+                self._log_update_state(
+                    "before",
+                    update["update_id"],
+                    "message",
+                    chat_id,
+                    user_id,
+                    session,
+                )
+                session = self.handle_message(chat_id, user_id, message["text"], session)
+                session.last_update_id = update["update_id"]
+                self._save_session(user_id, session)
+                self._log_update_state(
+                    "after",
+                    update["update_id"],
+                    "message",
+                    chat_id,
+                    user_id,
+                    session,
+                )
 
 
 def main() -> None:

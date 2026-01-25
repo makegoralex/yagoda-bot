@@ -116,15 +116,9 @@ class BotClient:
                 session.step = "staff_invite"
                 self.send_message(chat_id, "Введите invite-код компании.")
                 return
-            if self._handle_role_inference(chat_id, user_id, message):
-                return
             self.send_message(chat_id, "Пожалуйста, выберите роль кнопкой ниже.")
             self._send_role_prompt(chat_id, user_id)
             return
-
-        if session.role is None and session.step is None:
-            if self._handle_role_inference(chat_id, user_id, message):
-                return
 
         if session.step and session.step.startswith("owner_") and not session.role:
             session.role = "owner"
@@ -163,22 +157,27 @@ class BotClient:
             return
         self.send_message(chat_id, "Напишите /start, чтобы начать.")
 
-    @staticmethod
-    def _looks_like_invite_code(message: str) -> bool:
-        text = message.strip()
-        return len(text) == 8 and all(ch in "0123456789abcdef" for ch in text.lower())
+    def _answer_callback(self, callback_id: str) -> None:
+        requests.post(
+            f"{self.api_url}/answerCallbackQuery",
+            json={"callback_query_id": callback_id},
+            timeout=10,
+        )
 
-    def _handle_role_inference(self, chat_id: int, user_id: int, message: str) -> bool:
+    def handle_callback(self, chat_id: int, user_id: int, data: str, callback_id: str) -> None:
+        self._answer_callback(callback_id)
         session = self._get_session(user_id)
-        if self._looks_like_invite_code(message):
+        if data == "role_owner":
+            session.role = "owner"
+            session.step = "owner_company"
+            self.send_message(chat_id, "Введите название компании.")
+            return
+        if data == "role_staff":
             session.role = "staff"
             session.step = "staff_invite"
-            self._handle_staff_flow(chat_id, user_id, session, message)
-            return True
-        session.role = "owner"
-        session.step = "owner_company"
-        self._handle_owner_flow(chat_id, user_id, session, message)
-        return True
+            self.send_message(chat_id, "Введите invite-код компании.")
+            return
+        self.send_message(chat_id, "Напишите /start, чтобы начать.")
 
     def _handle_owner_flow(
         self,

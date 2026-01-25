@@ -115,12 +115,16 @@ class StoreStorage:
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
-        self.connection = sqlite3.connect(self.db_path, check_same_thread=False)
         self._ensure_schema()
 
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self.db_path, check_same_thread=False)
+        connection.execute("PRAGMA journal_mode=WAL")
+        return connection
+
     def _ensure_schema(self) -> None:
-        with self.connection:
-            self.connection.execute(
+        with self._connect() as connection:
+            connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS mvp_state (
                     key TEXT PRIMARY KEY,
@@ -130,8 +134,9 @@ class StoreStorage:
             )
 
     def load_store(self) -> Store:
-        cursor = self.connection.execute("SELECT key, value FROM mvp_state")
-        rows = cursor.fetchall()
+        with self._connect() as connection:
+            cursor = connection.execute("SELECT key, value FROM mvp_state")
+            rows = cursor.fetchall()
         data = {key: json.loads(value) for key, value in rows}
         companies = {
             item["id"]: Company(**item)
@@ -163,9 +168,9 @@ class StoreStorage:
             "invites": [_model_to_dict(item) for item in store.invites.values()],
             "credentials": [_model_to_dict(item) for item in store.credentials.values()],
         }
-        with self.connection:
+        with self._connect() as connection:
             for key, value in payloads.items():
-                self.connection.execute(
+                connection.execute(
                     """
                     INSERT INTO mvp_state (key, value)
                     VALUES (?, ?)

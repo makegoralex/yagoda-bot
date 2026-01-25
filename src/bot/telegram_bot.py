@@ -79,9 +79,10 @@ class BotClient:
         self.sessions[user_id] = session
         return session
 
-    def _send_role_prompt(self, chat_id: int, user_id: int) -> None:
-        session = self._reset_session(user_id)
+    def _send_role_prompt(self, chat_id: int, user_id: int, reset_session: bool = False) -> None:
+        session = self._reset_session(user_id) if reset_session else self._get_session(user_id)
         session.step = "choose_role"
+        session.role = None
         keyboard = {
             "keyboard": [
                 [{"text": "Владелец"}],
@@ -98,7 +99,7 @@ class BotClient:
         )
 
     def handle_start(self, chat_id: int, user_id: int) -> None:
-        self._send_role_prompt(chat_id, user_id)
+        self._send_role_prompt(chat_id, user_id, reset_session=True)
 
     def handle_message(self, chat_id: int, user_id: int, text: str) -> None:
         message = text.strip()
@@ -107,14 +108,14 @@ class BotClient:
             self.handle_start(chat_id, user_id)
             return
 
-        if session.step == "choose_role":
-            role = self._parse_role_choice(message)
-            if role == "owner":
+        role_choice = self._parse_role_choice(message)
+        if session.step == "choose_role" or (not session.role and role_choice):
+            if role_choice == "owner":
                 session.role = "owner"
                 session.step = "owner_company"
                 self.send_message(chat_id, "Введите название компании.")
                 return
-            if role == "staff":
+            if role_choice == "staff":
                 session.role = "staff"
                 session.step = "staff_invite"
                 self.send_message(chat_id, "Введите invite-код компании.")
@@ -192,6 +193,15 @@ class BotClient:
             return
         if session.step == "owner_password":
             session.data["password"] = message
+            session.step = "owner_timezone"
+            self.send_message(
+                chat_id,
+                "Введите таймзону (например, Europe/Moscow) или отправьте '-' чтобы оставить по умолчанию.",
+            )
+            return
+        if session.step == "owner_timezone":
+            timezone = None if message.strip() == "-" else message
+            session.data["timezone"] = timezone
             session.step = "owner_location"
             self.send_message(
                 chat_id,
@@ -206,8 +216,11 @@ class BotClient:
                 "username": session.data["username"],
                 "password": session.data["password"],
                 "telegram_id": str(user_id),
-                "location_name": location_name,
             }
+            if session.data.get("timezone"):
+                payload["timezone"] = session.data["timezone"]
+            if location_name:
+                payload["location_name"] = location_name
             response = requests.post(
                 f"{self.backend_base_url}/api/onboarding/owner",
                 json=payload,

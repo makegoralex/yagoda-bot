@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import json
 import logging
 import time
@@ -87,7 +88,8 @@ class BotClient:
         self.token = token
         self.backend_base_url = backend_base_url.rstrip("/")
         self.api_url = f"https://api.telegram.org/bot{token}"
-        session_db_path = os.getenv("SESSION_DB_PATH", "data/telegram_sessions.db")
+        default_db_path = Path(__file__).resolve().parents[2] / "data" / "telegram_sessions.db"
+        session_db_path = os.getenv("SESSION_DB_PATH", str(default_db_path))
         self.session_storage = SessionStorage(session_db_path)
         self._ensure_long_polling()
         self._log_startup_diagnostics()

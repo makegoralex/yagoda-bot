@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+from pathlib import Path
 import secrets
 import sqlite3
 from typing import Literal
@@ -174,7 +175,8 @@ class StoreStorage:
                 )
 
 
-storage = StoreStorage(os.getenv("MVP_DB_PATH", "data/mvp.db"))
+default_db_path = Path(__file__).resolve().parents[2] / "data" / "mvp.db"
+storage = StoreStorage(os.getenv("MVP_DB_PATH", str(default_db_path)))
 
 
 def load_store() -> Store:

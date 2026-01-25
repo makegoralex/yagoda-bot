@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
+import json
+import os
 import secrets
+import sqlite3
 from typing import Literal
 from uuid import uuid4
 
@@ -101,7 +104,85 @@ class Store:
     credentials: dict[str, WebCredential] = field(default_factory=dict)
 
 
-store = Store()
+def _model_to_dict(model: BaseModel) -> dict[str, object]:
+    if hasattr(model, "model_dump"):
+        return model.model_dump()
+    return model.dict()
+
+
+class StoreStorage:
+    def __init__(self, db_path: str) -> None:
+        self.db_path = db_path
+        os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
+        self.connection = sqlite3.connect(self.db_path, check_same_thread=False)
+        self._ensure_schema()
+
+    def _ensure_schema(self) -> None:
+        with self.connection:
+            self.connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS mvp_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+                """,
+            )
+
+    def load_store(self) -> Store:
+        cursor = self.connection.execute("SELECT key, value FROM mvp_state")
+        rows = cursor.fetchall()
+        data = {key: json.loads(value) for key, value in rows}
+        companies = {
+            item["id"]: Company(**item)
+            for item in data.get("companies", [])
+        }
+        users = {
+            item["id"]: User(**item)
+            for item in data.get("users", [])
+        }
+        invites = {
+            item["code"]: Invite(**item)
+            for item in data.get("invites", [])
+        }
+        credentials = {
+            item["id"]: WebCredential(**item)
+            for item in data.get("credentials", [])
+        }
+        return Store(
+            companies=companies,
+            users=users,
+            invites=invites,
+            credentials=credentials,
+        )
+
+    def save_store(self, store: Store) -> None:
+        payloads = {
+            "companies": [_model_to_dict(item) for item in store.companies.values()],
+            "users": [_model_to_dict(item) for item in store.users.values()],
+            "invites": [_model_to_dict(item) for item in store.invites.values()],
+            "credentials": [_model_to_dict(item) for item in store.credentials.values()],
+        }
+        with self.connection:
+            for key, value in payloads.items():
+                self.connection.execute(
+                    """
+                    INSERT INTO mvp_state (key, value)
+                    VALUES (?, ?)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                    """,
+                    (key, json.dumps(value, ensure_ascii=False, default=str)),
+                )
+
+
+storage = StoreStorage(os.getenv("MVP_DB_PATH", "data/mvp.db"))
+
+
+def load_store() -> Store:
+    return storage.load_store()
+
+
+def save_store(store: Store) -> None:
+    storage.save_store(store)
 router = APIRouter(prefix="/api")
 
 
@@ -109,11 +190,11 @@ def _hash_password(password: str, salt: str) -> str:
     return hashlib.sha256(f"{salt}{password}".encode("utf-8")).hexdigest()
 
 
-def _find_credential(username: str) -> WebCredential | None:
+def _find_credential(store: Store, username: str) -> WebCredential | None:
     return next((cred for cred in store.credentials.values() if cred.username == username), None)
 
 
-def _ensure_invite(code: str) -> Invite:
+def _ensure_invite(store: Store, code: str) -> Invite:
     invite = store.invites.get(code)
     if not invite:
         raise HTTPException(status_code=404, detail="Invite not found")
@@ -122,7 +203,7 @@ def _ensure_invite(code: str) -> Invite:
     return invite
 
 
-def _find_user_by_telegram(company_id: str, telegram_id: str) -> User | None:
+def _find_user_by_telegram(store: Store, company_id: str, telegram_id: str) -> User | None:
     return next(
         (
             user
@@ -135,7 +216,8 @@ def _find_user_by_telegram(company_id: str, telegram_id: str) -> User | None:
 
 @router.post("/onboarding/owner", response_model=OwnerOnboardingResponse)
 def onboard_owner(payload: OwnerOnboardingRequest) -> OwnerOnboardingResponse:
-    if _find_credential(payload.username):
+    store = load_store()
+    if _find_credential(store, payload.username):
         raise HTTPException(status_code=400, detail="Username already taken")
     company = Company(
         id=_new_id(),
@@ -171,6 +253,7 @@ def onboard_owner(payload: OwnerOnboardingRequest) -> OwnerOnboardingResponse:
         expires_at=None,
     )
     store.invites[invite.code] = invite
+    save_store(store)
     return OwnerOnboardingResponse(
         company=company,
         owner=owner,
@@ -182,7 +265,8 @@ def onboard_owner(payload: OwnerOnboardingRequest) -> OwnerOnboardingResponse:
 
 @router.post("/onboarding/login", response_model=LoginResponse)
 def login(payload: LoginRequest) -> LoginResponse:
-    credential = _find_credential(payload.username)
+    store = load_store()
+    credential = _find_credential(store, payload.username)
     if not credential:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     hashed = _hash_password(payload.password, credential.password_salt)
@@ -197,8 +281,9 @@ def login(payload: LoginRequest) -> LoginResponse:
 
 @router.post("/onboarding/invite", response_model=InviteRedeemResponse)
 def redeem_invite(payload: InviteRedeemRequest) -> InviteRedeemResponse:
-    invite = _ensure_invite(payload.code)
-    existing = _find_user_by_telegram(invite.company_id, payload.telegram_id)
+    store = load_store()
+    invite = _ensure_invite(store, payload.code)
+    existing = _find_user_by_telegram(store, invite.company_id, payload.telegram_id)
     if existing:
         return InviteRedeemResponse(
             user=existing,
@@ -214,6 +299,7 @@ def redeem_invite(payload: InviteRedeemRequest) -> InviteRedeemResponse:
         status="active",
     )
     store.users[user.id] = user
+    save_store(store)
     return InviteRedeemResponse(
         user=user,
         company_id=invite.company_id,

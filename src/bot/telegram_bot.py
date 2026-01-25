@@ -83,10 +83,12 @@ class BotClient:
         session = self._reset_session(user_id)
         session.step = "choose_role"
         keyboard = {
-            "inline_keyboard": [
-                [{"text": "Владелец", "callback_data": "role_owner"}],
-                [{"text": "Сотрудник", "callback_data": "role_staff"}],
-            ]
+            "keyboard": [
+                [{"text": "Владелец"}],
+                [{"text": "Сотрудник"}],
+            ],
+            "resize_keyboard": True,
+            "one_time_keyboard": True,
         }
         self.send_message(
             chat_id,
@@ -106,12 +108,13 @@ class BotClient:
             return
 
         if session.step == "choose_role":
-            if message.lower() in {"владелец", "админ"}:
+            role = self._parse_role_choice(message)
+            if role == "owner":
                 session.role = "owner"
                 session.step = "owner_company"
                 self.send_message(chat_id, "Введите название компании.")
                 return
-            if message.lower() == "сотрудник":
+            if role == "staff":
                 session.role = "staff"
                 session.step = "staff_invite"
                 self.send_message(chat_id, "Введите invite-код компании.")
@@ -157,27 +160,13 @@ class BotClient:
             return
         self.send_message(chat_id, "Напишите /start, чтобы начать.")
 
-    def _answer_callback(self, callback_id: str) -> None:
-        requests.post(
-            f"{self.api_url}/answerCallbackQuery",
-            json={"callback_query_id": callback_id},
-            timeout=10,
-        )
-
-    def handle_callback(self, chat_id: int, user_id: int, data: str, callback_id: str) -> None:
-        self._answer_callback(callback_id)
-        session = self._get_session(user_id)
-        if data == "role_owner":
-            session.role = "owner"
-            session.step = "owner_company"
-            self.send_message(chat_id, "Введите название компании.")
-            return
-        if data == "role_staff":
-            session.role = "staff"
-            session.step = "staff_invite"
-            self.send_message(chat_id, "Введите invite-код компании.")
-            return
-        self.send_message(chat_id, "Напишите /start, чтобы начать.")
+    def _parse_role_choice(self, message: str) -> str | None:
+        lowered = message.lower()
+        if lowered in {"владелец", "админ"} or "влад" in lowered:
+            return "owner"
+        if lowered == "сотрудник" or "сотр" in lowered:
+            return "staff"
+        return None
 
     def _handle_owner_flow(
         self,

@@ -21,6 +21,12 @@ def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/version")
+def version() -> dict[str, str]:
+    version_value = os.getenv("APP_VERSION") or os.getenv("GIT_SHA") or "unknown"
+    return {"version": version_value}
+
+
 @app.get("/demo", response_class=HTMLResponse)
 def demo_page(request: Request) -> HTMLResponse:
     store = load_store()
@@ -36,7 +42,10 @@ def _render_company_page(request: Request, company_id: str) -> HTMLResponse:
     store = load_store()
     company = store.companies.get(company_id)
     if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
+        return HTMLResponse(
+            content="<html><body><h1>Company not found</h1></body></html>",
+            status_code=404,
+        )
     users = [user for user in store.users.values() if user.company_id == company_id]
     return templates.TemplateResponse(
         "company.html",

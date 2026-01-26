@@ -32,8 +32,7 @@ def demo_page(request: Request) -> HTMLResponse:
     )
 
 
-@app.get("/companies/{company_id}", response_class=HTMLResponse)
-def company_page(request: Request, company_id: str) -> HTMLResponse:
+def _render_company_page(request: Request, company_id: str) -> HTMLResponse:
     store = load_store()
     company = store.companies.get(company_id)
     if not company:
@@ -43,6 +42,16 @@ def company_page(request: Request, company_id: str) -> HTMLResponse:
         "company.html",
         {"request": request, "company": company, "users": users},
     )
+
+
+@app.get("/companies/{company_id}", response_class=HTMLResponse)
+def company_page(request: Request, company_id: str) -> HTMLResponse:
+    return _render_company_page(request, company_id)
+
+
+@app.get("/company/{company_id}", response_class=HTMLResponse)
+def company_page_alias(request: Request, company_id: str) -> HTMLResponse:
+    return _render_company_page(request, company_id)
 
 
 def _get_required_env(name: str) -> str:

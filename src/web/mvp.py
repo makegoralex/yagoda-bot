@@ -83,6 +83,7 @@ class LoginResponse(BaseModel):
     user_id: str
     company_id: str
     authenticated: bool
+    redirect_url: str
 
 
 class InviteRedeemRequest(BaseModel):
@@ -429,6 +430,7 @@ def login(payload: LoginRequest) -> LoginResponse:
         user_id=credential.user_id,
         company_id=credential.company_id,
         authenticated=True,
+        redirect_url=f"/companies/{credential.company_id}",
     )
 
 

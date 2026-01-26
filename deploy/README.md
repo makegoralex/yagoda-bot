@@ -24,14 +24,17 @@ This creates two services:
 - `yagoda-bot-native.service` (telegram bot)
 
 ## GitHub Actions autodeploy
-This repo includes a GitHub Actions workflow that deploys on every push to `main`.
+This repo includes a GitHub Actions workflow that deploys on every push to `main` and
+on every pull request update (demo deployment).
 
 Required repository secrets:
 - `SERVER_IP` — server IP address
 - `SERVER_USER` — SSH username
 - `SSH_PRIVATE_KEY` — private key with access to the server
 
-The workflow runs `./deploy/install_user_systemd.sh` on the server after `git pull` (no sudo).
+The workflow runs `./deploy/install_user_systemd.sh` on the server after updating the
+working tree. For pull requests it fetches the PR head ref and checks it out on the
+server before restarting services.
 
 ### One-time setup for user services
 User services require lingering to keep running after logout:

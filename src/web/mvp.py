@@ -94,6 +94,7 @@ class InviteRedeemRequest(BaseModel):
 class InviteRedeemResponse(BaseModel):
     user: User
     company_id: str
+    company_name: str
     role: str
 
 
@@ -290,21 +291,20 @@ def login(payload: LoginRequest) -> LoginResponse:
 def redeem_invite(payload: InviteRedeemRequest) -> InviteRedeemResponse:
     store = load_store()
     invite = _ensure_invite(store, payload.code)
+    company = store.companies.get(invite.company_id)
+    company_name = company.name if company else ""
     existing = _find_user_by_telegram(store, invite.company_id, payload.telegram_id)
     if existing:
-        if existing.role != invite.role_default:
-            updated = existing.model_copy(update={"role": invite.role_default})
-            store.users[updated.id] = updated
-            save_store(store)
-            return InviteRedeemResponse(
-                user=updated,
-                company_id=invite.company_id,
-                role=updated.role,
-            )
+        updated = existing.model_copy(
+            update={"role": invite.role_default, "name": payload.name},
+        )
+        store.users[updated.id] = updated
+        save_store(store)
         return InviteRedeemResponse(
-            user=existing,
+            user=updated,
             company_id=invite.company_id,
-            role=existing.role,
+            company_name=company_name,
+            role=updated.role,
         )
     user = User(
         id=_new_id(),
@@ -319,5 +319,6 @@ def redeem_invite(payload: InviteRedeemRequest) -> InviteRedeemResponse:
     return InviteRedeemResponse(
         user=user,
         company_id=invite.company_id,
+        company_name=company_name,
         role=user.role,
     )

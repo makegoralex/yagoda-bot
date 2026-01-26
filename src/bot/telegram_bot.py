@@ -93,6 +93,10 @@ class BotClient:
         self.session_storage = SessionStorage(session_db_path)
         self._ensure_long_polling()
         self._log_startup_diagnostics()
+        self._staff_menu_label = "Профиль"
+        self._staff_recipes_label = "Рецепты"
+        self._staff_menu_back_label = "В меню"
+        self._staff_recipes_back_label = "Назад"
 
     def _ensure_long_polling(self) -> None:
         try:
@@ -162,6 +166,30 @@ class BotClient:
         )
         return session
 
+    def _staff_menu_keyboard(self) -> dict[str, Any]:
+        return {
+            "keyboard": [
+                [{"text": self._staff_menu_label}],
+                [{"text": self._staff_recipes_label}],
+            ],
+            "resize_keyboard": True,
+        }
+
+    def _staff_back_keyboard(self, label: str) -> dict[str, Any]:
+        return {
+            "keyboard": [[{"text": label}]],
+            "resize_keyboard": True,
+        }
+
+    def _send_staff_menu(self, chat_id: int, session: Session) -> Session:
+        session.step = "staff_menu"
+        self.send_message(
+            chat_id,
+            "Вы в меню сотрудника. Выберите раздел.",
+            reply_markup=self._staff_menu_keyboard(),
+        )
+        return session
+
     def _repeat_current_question(self, chat_id: int, session: Session) -> Session:
         if session.step in (None, "choose_role"):
             return self._send_role_prompt(chat_id, session)
@@ -195,7 +223,43 @@ class BotClient:
         if session.step == "staff_name":
             self.send_message(chat_id, "Введите ваше имя.")
             return session
+        if session.step == "staff_menu":
+            return self._send_staff_menu(chat_id, session)
+        if session.step == "staff_profile":
+            return self._send_staff_profile(chat_id, session)
+        if session.step == "staff_recipes":
+            return self._send_staff_recipes(chat_id, session)
         self.send_message(chat_id, "Напишите /start, чтобы начать.")
+        return session
+
+    def _role_label(self, role: str | None) -> str:
+        mapping = {
+            "owner": "владелец",
+            "manager": "менеджер",
+            "staff": "сотрудник",
+        }
+        if not role:
+            return "сотрудник"
+        return mapping.get(role, role)
+
+    def _send_staff_profile(self, chat_id: int, session: Session) -> Session:
+        session.step = "staff_profile"
+        name = session.data.get("staff_name") or "—"
+        company = session.data.get("company_name") or "—"
+        self.send_message(
+            chat_id,
+            f"Профиль сотрудника\nИмя: {name}\nОрганизация: {company}",
+            reply_markup=self._staff_back_keyboard(self._staff_menu_back_label),
+        )
+        return session
+
+    def _send_staff_recipes(self, chat_id: int, session: Session) -> Session:
+        session.step = "staff_recipes"
+        self.send_message(
+            chat_id,
+            "Рецепты пока пустые.",
+            reply_markup=self._staff_back_keyboard(self._staff_recipes_back_label),
+        )
         return session
 
     def _log_update_state(
@@ -364,6 +428,20 @@ class BotClient:
         session: Session,
         message: str,
     ) -> Session:
+        if session.step == "staff_menu":
+            if message == self._staff_menu_label:
+                return self._send_staff_profile(chat_id, session)
+            if message == self._staff_recipes_label:
+                return self._send_staff_recipes(chat_id, session)
+            return self._send_staff_menu(chat_id, session)
+        if session.step == "staff_profile":
+            if message == self._staff_menu_back_label:
+                return self._send_staff_menu(chat_id, session)
+            return self._send_staff_profile(chat_id, session)
+        if session.step == "staff_recipes":
+            if message == self._staff_recipes_back_label:
+                return self._send_staff_menu(chat_id, session)
+            return self._send_staff_recipes(chat_id, session)
         if session.step == "staff_invite":
             session.data["invite_code"] = message
             session.step = "staff_name"
@@ -381,12 +459,18 @@ class BotClient:
                 timeout=10,
             )
             if response.ok:
-                role = response.json().get("role", "staff")
+                data = response.json()
+                company_name = data.get("company_name")
+                session.data["staff_name"] = message
+                session.role = "staff"
+                if company_name:
+                    session.data["company_name"] = company_name
                 self.send_message(
                     chat_id,
-                    f"Готово ✅ Вы добавлены как {role}.",
+                    f"Готово ✅ Вы добавлены как {self._role_label('staff')}.",
+                    reply_markup=self._staff_menu_keyboard(),
                 )
-                return self._reset_session()
+                return self._send_staff_menu(chat_id, session)
             self.send_message(chat_id, f"Ошибка invite-кода: {response.text}")
             return self._reset_session()
 

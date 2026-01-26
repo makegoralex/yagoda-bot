@@ -5,7 +5,7 @@ from pathlib import Path
 
 import requests
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from src.web.mvp import router as mvp_router
@@ -56,12 +56,12 @@ def company_page_alias(request: Request, company_id: str) -> HTMLResponse:
 
 @app.get("/demo/companies/{company_id}", response_class=HTMLResponse)
 def demo_company_page(request: Request, company_id: str) -> HTMLResponse:
-    return _render_company_page(request, company_id)
+    return RedirectResponse(url=f"/companies/{company_id}")
 
 
 @app.get("/demo/company/{company_id}", response_class=HTMLResponse)
 def demo_company_page_alias(request: Request, company_id: str) -> HTMLResponse:
-    return _render_company_page(request, company_id)
+    return RedirectResponse(url=f"/companies/{company_id}")
 
 
 def _get_required_env(name: str) -> str:

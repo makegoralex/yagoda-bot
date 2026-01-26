@@ -83,6 +83,7 @@ class LoginResponse(BaseModel):
     user_id: str
     company_id: str
     authenticated: bool
+    redirect_url: str
 
 
 class InviteRedeemRequest(BaseModel):
@@ -418,10 +419,18 @@ def login(payload: LoginRequest) -> LoginResponse:
     hashed = _hash_password(payload.password, credential.password_salt)
     if hashed != credential.password_hash:
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    user = store.users.get(credential.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner accounts can login")
+    if user.status != "active":
+        raise HTTPException(status_code=403, detail="User is inactive")
     return LoginResponse(
         user_id=credential.user_id,
         company_id=credential.company_id,
         authenticated=True,
+        redirect_url=f"/companies/{credential.company_id}",
     )
 
 

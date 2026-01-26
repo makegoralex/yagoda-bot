@@ -3,6 +3,8 @@ name: Deploy
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
   deploy:
@@ -16,6 +18,15 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /home/yagoda_staff/yagoda-bot
-            git pull
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+              git fetch origin "pull/${{ github.event.pull_request.number }}/head:${PR_BRANCH}"
+              git checkout "${PR_BRANCH}"
+              git reset --hard "${PR_BRANCH}"
+            else
+              git fetch origin main
+              git checkout main
+              git reset --hard origin/main
+            fi
             chmod +x deploy/install_user_systemd.sh
             ./deploy/install_user_systemd.sh

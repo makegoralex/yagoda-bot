@@ -462,15 +462,14 @@ class BotClient:
                 data = response.json()
                 company_name = data.get("company_name")
                 session.data["staff_name"] = message
+                session.role = "staff"
                 if company_name:
                     session.data["company_name"] = company_name
-                session.step = "staff_menu"
                 self.send_message(
                     chat_id,
                     f"Готово ✅ Вы добавлены как {self._role_label('staff')}.",
-                    reply_markup=self._staff_menu_keyboard(),
                 )
-                return session
+                return self._send_staff_menu(chat_id, session)
             self.send_message(chat_id, f"Ошибка invite-кода: {response.text}")
             return self._reset_session()
 

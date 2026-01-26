@@ -37,10 +37,21 @@ def home_page(request: Request) -> HTMLResponse:
     store = load_store()
     companies = list(store.companies.values())
     users = list(store.users.values())
+    app_version = os.getenv("APP_VERSION") or os.getenv("GIT_SHA") or "unknown"
     return templates.TemplateResponse(
-        "demo.html",
-        {"request": request, "companies": companies, "users": users},
+        "home.html",
+        {
+            "request": request,
+            "companies": companies,
+            "users": users,
+            "app_version": app_version,
+        },
     )
+
+
+@app.get("/demo", response_class=HTMLResponse)
+def demo_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/", status_code=301)
 
 
 def _render_company_page(request: Request, company_id: str) -> HTMLResponse:

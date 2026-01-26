@@ -123,6 +123,78 @@ class StoreStorage:
         connection.execute("PRAGMA journal_mode=WAL")
         return connection
 
+    def _table_exists(self, connection: sqlite3.Connection, table_name: str) -> bool:
+        cursor = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+            (table_name,),
+        )
+        return cursor.fetchone() is not None
+
+    def _table_columns(self, connection: sqlite3.Connection, table_name: str) -> set[str]:
+        cursor = connection.execute(f"PRAGMA table_info({table_name})")
+        return {row[1] for row in cursor.fetchall()}
+
+    def _load_companies_fallback(self, connection: sqlite3.Connection) -> dict[str, Company]:
+        if not self._table_exists(connection, "companies"):
+            return {}
+        columns = self._table_columns(connection, "companies")
+        if not {"id", "name"} <= columns:
+            return {}
+        timezone_column = "timezone" if "timezone" in columns else None
+        created_at_column = "created_at" if "created_at" in columns else None
+        select_columns = ["id", "name"]
+        if timezone_column:
+            select_columns.append(timezone_column)
+        if created_at_column:
+            select_columns.append(created_at_column)
+        cursor = connection.execute(
+            f"SELECT {', '.join(select_columns)} FROM companies",
+        )
+        companies: dict[str, Company] = {}
+        for row in cursor.fetchall():
+            row_data = dict(zip(select_columns, row))
+            company = Company(
+                id=row_data["id"],
+                name=row_data["name"],
+                timezone=row_data.get("timezone") or "Europe/Moscow",
+                created_at=row_data.get("created_at") or _utc_now(),
+            )
+            companies[company.id] = company
+        return companies
+
+    def _load_users_fallback(self, connection: sqlite3.Connection) -> dict[str, User]:
+        if not self._table_exists(connection, "users"):
+            return {}
+        columns = self._table_columns(connection, "users")
+        if not {"id", "company_id", "name"} <= columns:
+            return {}
+        telegram_column = "telegram_id" if "telegram_id" in columns else None
+        role_column = "role" if "role" in columns else None
+        status_column = "status" if "status" in columns else None
+        select_columns = ["id", "company_id", "name"]
+        if telegram_column:
+            select_columns.append(telegram_column)
+        if role_column:
+            select_columns.append(role_column)
+        if status_column:
+            select_columns.append(status_column)
+        cursor = connection.execute(
+            f"SELECT {', '.join(select_columns)} FROM users",
+        )
+        users: dict[str, User] = {}
+        for row in cursor.fetchall():
+            row_data = dict(zip(select_columns, row))
+            user = User(
+                id=row_data["id"],
+                company_id=row_data["company_id"],
+                telegram_id=row_data.get("telegram_id") or "",
+                name=row_data["name"],
+                role=row_data.get("role") or "staff",
+                status=row_data.get("status") or "active",
+            )
+            users[user.id] = user
+        return users
+
     def _ensure_schema(self) -> None:
         with self._connect() as connection:
             connection.execute(
@@ -130,6 +202,28 @@ class StoreStorage:
                 CREATE TABLE IF NOT EXISTS mvp_state (
                     key TEXT PRIMARY KEY,
                     value TEXT
+                )
+                """,
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS companies (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    timezone TEXT,
+                    created_at TEXT
+                )
+                """,
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    company_id TEXT NOT NULL,
+                    telegram_id TEXT,
+                    name TEXT NOT NULL,
+                    role TEXT,
+                    status TEXT
                 )
                 """,
             )
@@ -147,6 +241,12 @@ class StoreStorage:
             item["id"]: User(**item)
             for item in data.get("users", [])
         }
+        if not companies or not users:
+            with self._connect() as connection:
+                if not companies:
+                    companies = self._load_companies_fallback(connection)
+                if not users:
+                    users = self._load_users_fallback(connection)
         invites = {
             item["code"]: Invite(**item)
             for item in data.get("invites", [])
@@ -178,6 +278,44 @@ class StoreStorage:
                     ON CONFLICT(key) DO UPDATE SET value = excluded.value
                     """,
                     (key, json.dumps(value, ensure_ascii=False, default=str)),
+                )
+            for company in store.companies.values():
+                connection.execute(
+                    """
+                    INSERT INTO companies (id, name, timezone, created_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        name = excluded.name,
+                        timezone = excluded.timezone,
+                        created_at = excluded.created_at
+                    """,
+                    (
+                        company.id,
+                        company.name,
+                        company.timezone,
+                        str(company.created_at),
+                    ),
+                )
+            for user in store.users.values():
+                connection.execute(
+                    """
+                    INSERT INTO users (id, company_id, telegram_id, name, role, status)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        company_id = excluded.company_id,
+                        telegram_id = excluded.telegram_id,
+                        name = excluded.name,
+                        role = excluded.role,
+                        status = excluded.status
+                    """,
+                    (
+                        user.id,
+                        user.company_id,
+                        user.telegram_id,
+                        user.name,
+                        user.role,
+                        user.status,
+                    ),
                 )
 
 

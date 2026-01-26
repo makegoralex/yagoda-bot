@@ -493,6 +493,7 @@
           setOwnerStatus(
             `Доступ подтверждён ✅ Компания: ${data.company_id}. Пользователь: ${data.user_id}.`
           );
+          window.location.href = `/companies/${data.company_id}`;
         } catch (error) {
           setOwnerStatus(`Ошибка: ${error.message}`, true);
         } finally {

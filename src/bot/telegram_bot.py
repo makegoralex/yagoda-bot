@@ -468,6 +468,7 @@ class BotClient:
                 self.send_message(
                     chat_id,
                     f"Готово ✅ Вы добавлены как {self._role_label('staff')}.",
+                    reply_markup=self._staff_menu_keyboard(),
                 )
                 return self._send_staff_menu(chat_id, session)
             self.send_message(chat_id, f"Ошибка invite-кода: {response.text}")

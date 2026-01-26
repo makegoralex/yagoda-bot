@@ -16,6 +16,11 @@ templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "tem
 app.include_router(mvp_router)
 
 
+@app.get("/version")
+def version() -> dict[str, str]:
+    return {"version": os.getenv("APP_VERSION", "unknown")}
+
+
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}

@@ -32,6 +32,19 @@ def demo_page(request: Request) -> HTMLResponse:
     )
 
 
+@app.get("/companies/{company_id}", response_class=HTMLResponse)
+def company_page(request: Request, company_id: str) -> HTMLResponse:
+    store = load_store()
+    company = store.companies.get(company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    users = [user for user in store.users.values() if user.company_id == company_id]
+    return templates.TemplateResponse(
+        "company.html",
+        {"request": request, "company": company, "users": users},
+    )
+
+
 def _get_required_env(name: str) -> str:
     value = os.getenv(name)
     if not value:

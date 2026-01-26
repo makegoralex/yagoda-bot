@@ -186,6 +186,46 @@
         font-size: 14px;
         color: #5b6b8b;
       }
+
+      .form-grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .form-grid label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #5b6b8b;
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .form-grid input {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid #e0e5f2;
+        padding: 10px 12px;
+        font-size: 14px;
+        background: #f9faff;
+      }
+
+      .form-grid input:focus {
+        outline: 2px solid rgba(47, 103, 246, 0.3);
+        border-color: #2f67f6;
+      }
+
+      .auth-status {
+        font-size: 14px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: #eef3ff;
+        color: #2f67f6;
+      }
+
+      .auth-status.error {
+        background: #ffecec;
+        color: #c42d2d;
+      }
     </style>
   </head>
   <body>
@@ -356,6 +396,29 @@
           <p class="empty-hint">Пока нет пользователей. Пройдите онбординг в боте.</p>
           {% endif %}
         </div>
+        <div class="card">
+          <h2>Вход владельца</h2>
+          <p class="empty-hint">
+            Используйте логин и пароль, заданные при создании организации.
+          </p>
+          <form id="ownerLoginForm" class="form-grid">
+            <div>
+              <label for="ownerUsername">Логин</label>
+              <input id="ownerUsername" name="username" type="text" autocomplete="username" />
+            </div>
+            <div>
+              <label for="ownerPassword">Пароль</label>
+              <input
+                id="ownerPassword"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+              />
+            </div>
+            <button id="ownerLoginButton" type="submit">Войти</button>
+            <div id="ownerLoginStatus" class="auth-status">Ожидаем ввод данных.</div>
+          </form>
+        </div>
       </section>
     </div>
 
@@ -388,6 +451,53 @@
           setStatus(`Ошибка: ${error.message}`, true);
         } finally {
           checkButton.disabled = false;
+        }
+      });
+
+      const ownerForm = document.getElementById("ownerLoginForm");
+      const ownerButton = document.getElementById("ownerLoginButton");
+      const ownerStatus = document.getElementById("ownerLoginStatus");
+
+      const setOwnerStatus = (text, isError = false) => {
+        ownerStatus.textContent = text;
+        ownerStatus.classList.toggle("error", isError);
+      };
+
+      ownerForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const username = document.getElementById("ownerUsername").value.trim();
+        const password = document.getElementById("ownerPassword").value.trim();
+
+        if (!username || !password) {
+          setOwnerStatus("Введите логин и пароль.", true);
+          return;
+        }
+
+        ownerButton.disabled = true;
+        setOwnerStatus("Проверяем доступ...");
+
+        try {
+          const response = await fetch("/api/onboarding/login", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ username, password }),
+          });
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.detail || "Ошибка авторизации");
+          }
+
+          setOwnerStatus(
+            `Доступ подтверждён ✅ Компания: ${data.company_id}. Пользователь: ${data.user_id}.`
+          );
+          window.location.href = `/companies/${data.company_id}`;
+        } catch (error) {
+          setOwnerStatus(`Ошибка: ${error.message}`, true);
+        } finally {
+          ownerButton.disabled = false;
         }
       });
     </script>

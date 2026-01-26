@@ -54,6 +54,16 @@ def company_page_alias(request: Request, company_id: str) -> HTMLResponse:
     return _render_company_page(request, company_id)
 
 
+@app.get("/demo/companies/{company_id}", response_class=HTMLResponse)
+def demo_company_page(request: Request, company_id: str) -> HTMLResponse:
+    return _render_company_page(request, company_id)
+
+
+@app.get("/demo/company/{company_id}", response_class=HTMLResponse)
+def demo_company_page_alias(request: Request, company_id: str) -> HTMLResponse:
+    return _render_company_page(request, company_id)
+
+
 def _get_required_env(name: str) -> str:
     value = os.getenv(name)
     if not value:

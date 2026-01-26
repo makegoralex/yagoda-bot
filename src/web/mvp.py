@@ -430,7 +430,7 @@ def login(payload: LoginRequest) -> LoginResponse:
         user_id=credential.user_id,
         company_id=credential.company_id,
         authenticated=True,
-        redirect_url=f"/companies/{credential.company_id}",
+        redirect_url=f"/demo/companies/{credential.company_id}",
     )
 
 

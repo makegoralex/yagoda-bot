@@ -205,6 +205,28 @@ class StoreStorage:
                 )
                 """,
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS companies (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    timezone TEXT,
+                    created_at TEXT
+                )
+                """,
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    company_id TEXT NOT NULL,
+                    telegram_id TEXT,
+                    name TEXT NOT NULL,
+                    role TEXT,
+                    status TEXT
+                )
+                """,
+            )
 
     def load_store(self) -> Store:
         with self._connect() as connection:
@@ -256,6 +278,44 @@ class StoreStorage:
                     ON CONFLICT(key) DO UPDATE SET value = excluded.value
                     """,
                     (key, json.dumps(value, ensure_ascii=False, default=str)),
+                )
+            for company in store.companies.values():
+                connection.execute(
+                    """
+                    INSERT INTO companies (id, name, timezone, created_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        name = excluded.name,
+                        timezone = excluded.timezone,
+                        created_at = excluded.created_at
+                    """,
+                    (
+                        company.id,
+                        company.name,
+                        company.timezone,
+                        str(company.created_at),
+                    ),
+                )
+            for user in store.users.values():
+                connection.execute(
+                    """
+                    INSERT INTO users (id, company_id, telegram_id, name, role, status)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        company_id = excluded.company_id,
+                        telegram_id = excluded.telegram_id,
+                        name = excluded.name,
+                        role = excluded.role,
+                        status = excluded.status
+                    """,
+                    (
+                        user.id,
+                        user.company_id,
+                        user.telegram_id,
+                        user.name,
+                        user.role,
+                        user.status,
+                    ),
                 )
 
 

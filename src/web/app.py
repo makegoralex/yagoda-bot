@@ -32,15 +32,26 @@ def version() -> dict[str, str]:
     return {"version": version_value}
 
 
-@app.get("/demo", response_class=HTMLResponse)
-def demo_page(request: Request) -> HTMLResponse:
+@app.get("/", response_class=HTMLResponse)
+def home_page(request: Request) -> HTMLResponse:
     store = load_store()
     companies = list(store.companies.values())
     users = list(store.users.values())
+    app_version = os.getenv("APP_VERSION") or os.getenv("GIT_SHA") or "unknown"
     return templates.TemplateResponse(
-        "demo.html",
-        {"request": request, "companies": companies, "users": users},
+        "home.html",
+        {
+            "request": request,
+            "companies": companies,
+            "users": users,
+            "app_version": app_version,
+        },
     )
+
+
+@app.get("/demo", response_class=HTMLResponse)
+def demo_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/", status_code=301)
 
 
 def _render_company_page(request: Request, company_id: str) -> HTMLResponse:
@@ -66,16 +77,6 @@ def company_page(request: Request, company_id: str) -> HTMLResponse:
 @app.get("/company/{company_id}", response_class=HTMLResponse)
 def company_page_alias(request: Request, company_id: str) -> HTMLResponse:
     return _render_company_page(request, company_id)
-
-
-@app.get("/demo/companies/{company_id}", response_class=HTMLResponse)
-def demo_company_page(request: Request, company_id: str) -> HTMLResponse:
-    return RedirectResponse(url=f"/companies/{company_id}")
-
-
-@app.get("/demo/company/{company_id}", response_class=HTMLResponse)
-def demo_company_page_alias(request: Request, company_id: str) -> HTMLResponse:
-    return RedirectResponse(url=f"/companies/{company_id}")
 
 
 def _get_required_env(name: str) -> str:

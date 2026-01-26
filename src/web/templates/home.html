@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Yagoda Bot — MVP Спецификация</title>
+    <title>Yagoda Bot — управление сменами и персоналом</title>
     <style>
       :root {
         color-scheme: light;
@@ -232,10 +232,10 @@
     <div class="page">
       <header>
         <div class="deploy-banner">
-          🚀 Автодеплой работает: обновление от 2026-01-23
+          🚀 Продакшн: версия {{ app_version }}
         </div>
         <span class="eyebrow">SaaS / Telegram bot + Admin Web</span>
-        <h1>Yagoda Bot — спецификация MVP для управления сменами и персоналом</h1>
+        <h1>Yagoda Bot — управление сменами и персоналом</h1>
         <p>
           Цель продукта — сделать бизнес управляемым через процедурную фиксацию
           фактов: смены, инциденты, финконтроль, обучение и тесты. Если факт не
@@ -325,8 +325,8 @@
       </section>
 
       <section class="callout">
-        <span class="pill">MVP acceptance checklist</span>
-        <strong>Проверка готовности MVP</strong>
+        <span class="pill">Production checklist</span>
+        <strong>Проверка готовности продукта</strong>
         <p>
           Владелец создаёт компанию и приглашает сотрудника, сотрудник открывает
           и закрывает смену по политике, тесты блокируют закрытие, критичные
@@ -490,16 +490,14 @@
             throw new Error(data.detail || "Ошибка авторизации");
           }
 
-          const basePath = window.location.pathname.startsWith("/demo") ? "/demo" : "";
-          const redirectUrl =
-            data.redirect_url || `${basePath}/companies/${data.company_id}`;
+          const redirectUrl = data.redirect_url || `/companies/${data.company_id}`;
           setOwnerStatus(
             `Доступ подтверждён ✅ Компания: ${data.company_id}. Пользователь: ${data.user_id}.`
           );
           if (redirectUrl.startsWith("/")) {
             window.location.href = redirectUrl;
           } else {
-            window.location.href = `${basePath}/${redirectUrl}`;
+            window.location.href = `/${redirectUrl}`;
           }
         } catch (error) {
           setOwnerStatus(`Ошибка: ${error.message}`, true);

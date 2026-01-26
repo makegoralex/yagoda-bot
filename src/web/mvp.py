@@ -295,21 +295,16 @@ def redeem_invite(payload: InviteRedeemRequest) -> InviteRedeemResponse:
     company_name = company.name if company else ""
     existing = _find_user_by_telegram(store, invite.company_id, payload.telegram_id)
     if existing:
-        if existing.role != invite.role_default:
-            updated = existing.model_copy(update={"role": invite.role_default})
-            store.users[updated.id] = updated
-            save_store(store)
-            return InviteRedeemResponse(
-                user=updated,
-                company_id=invite.company_id,
-                company_name=company_name,
-                role=updated.role,
-            )
+        updated = existing.model_copy(
+            update={"role": invite.role_default, "name": payload.name},
+        )
+        store.users[updated.id] = updated
+        save_store(store)
         return InviteRedeemResponse(
-            user=existing,
+            user=updated,
             company_id=invite.company_id,
             company_name=company_name,
-            role=existing.role,
+            role=updated.role,
         )
     user = User(
         id=_new_id(),

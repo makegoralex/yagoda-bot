@@ -490,11 +490,17 @@
             throw new Error(data.detail || "Ошибка авторизации");
           }
 
-          const redirectUrl = data.redirect_url || `/companies/${data.company_id}`;
+          const basePath = window.location.pathname.startsWith("/demo") ? "/demo" : "";
+          const redirectUrl =
+            data.redirect_url || `${basePath}/companies/${data.company_id}`;
           setOwnerStatus(
             `Доступ подтверждён ✅ Компания: ${data.company_id}. Пользователь: ${data.user_id}.`
           );
-          window.location.href = redirectUrl;
+          if (redirectUrl.startsWith("/")) {
+            window.location.href = redirectUrl;
+          } else {
+            window.location.href = `${basePath}/${redirectUrl}`;
+          }
         } catch (error) {
           setOwnerStatus(`Ошибка: ${error.message}`, true);
         } finally {

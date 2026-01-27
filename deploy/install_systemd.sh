@@ -8,6 +8,8 @@ if [ ! -f docker-compose.yml ]; then
   exit 1
 fi
 
+chmod +x deploy/refresh_docker.sh
+
 sudo cp deploy/yagoda-bot.service "$SERVICE_PATH"
 sudo systemctl daemon-reload
 sudo systemctl enable yagoda-bot.service

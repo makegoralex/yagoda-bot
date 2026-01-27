@@ -1,8 +1,8 @@
 # yagoda-bot
 Бот управления кофейней.
 
-## Быстрый автозапуск (Docker Compose)
-Этот вариант запускает backend и Telegram-бота одной командой.
+## Быстрый автозапуск (systemd, без Docker)
+Этот вариант запускает backend и Telegram-бота нативно и используется для автодеплоя.
 
 ### 1) Подготовьте .env
 ```bash
@@ -12,28 +12,11 @@ cp .env.example .env
 
 ### 2) Запуск
 ```bash
-docker compose up -d --build
-```
-
-### 3) Остановка
-```bash
-docker compose down
-```
-
-Backend будет доступен на `http://localhost:8000`.
-
-### Автозапуск на сервере (systemd)
-Для автозапуска при ребуте используйте скрипт:
-```bash
-chmod +x deploy/install_systemd.sh
-./deploy/install_systemd.sh
-```
-
-Если Docker не установлен, используйте нативные systemd-сервисы:
-```bash
 chmod +x deploy/install_native_systemd.sh
 ./deploy/install_native_systemd.sh
 ```
+
+Backend будет доступен на `http://localhost:8000`.
 
 ### Автодеплой через GitHub Actions
 В репозитории есть workflow автодеплоя на сервер при каждом push в `main`.
@@ -78,7 +61,7 @@ uvicorn src.web.app:app --host 0.0.0.0 --port 8000 --reload
 
 Откройте в браузере:
 ```
-http://localhost:8000/demo
+http://localhost:8000/
 ```
 
 Нажмите кнопку — появится статус проверки токена.

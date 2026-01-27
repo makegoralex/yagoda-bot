@@ -1,17 +1,5 @@
 # Server install (systemd)
-
-This installs a systemd unit that starts Docker Compose on boot and restarts it on deploy.
-
-```bash
-cd /home/yagoda_staff/yagoda-bot
-chmod +x deploy/install_systemd.sh
-./deploy/install_systemd.sh
-```
-
-Make sure `.env` exists with `TELEGRAM_BOT_TOKEN` before running the script.
-
-## Native (no Docker)
-Use this if Docker is not installed on the server.
+This installs systemd units that run the backend and Telegram bot natively.
 
 ```bash
 cd /home/yagoda_staff/yagoda-bot
@@ -32,9 +20,8 @@ Required repository secrets:
 - `SERVER_USER` — SSH username
 - `SSH_PRIVATE_KEY` — private key with access to the server
 
-The workflow runs `./deploy/install_user_systemd.sh` on the server after updating the
-working tree. For pull requests it fetches the PR head ref and checks it out on the
-server before restarting services.
+The workflow runs `./deploy/refresh_native.sh` on the server after updating the
+working tree to install dependencies and restart services.
 
 ### One-time setup for user services
 User services require lingering to keep running after logout:

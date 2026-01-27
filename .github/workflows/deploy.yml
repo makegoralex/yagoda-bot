@@ -1,32 +1,53 @@
-name: Deploy
+name: Deploy to VPS
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+env:
+  APP_DIR: /home/yagoda_staff/yagoda-bot
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to server
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install rsync
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rsync
+
+      - name: Sync repo to server (rsync)
+        env:
+          SSH_HOST: ${{ secrets.SERVER_IP }}
+          SSH_USER: ${{ secrets.SERVER_USER }}
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf "%s" "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+          rsync -az --delete \
+            --exclude ".git" \
+            --exclude ".venv" \
+            --exclude "__pycache__" \
+            -e "ssh -i ~/.ssh/id_rsa" \
+            ./ "$SSH_USER@$SSH_HOST:$APP_DIR/"
+
+      - name: Restart Docker Compose
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /home/yagoda_staff/yagoda-bot
-            if [ "${{ github.event_name }}" = "pull_request" ]; then
-              PR_BRANCH="pr-${{ github.event.pull_request.number }}"
-              git fetch origin "pull/${{ github.event.pull_request.number }}/head:${PR_BRANCH}"
-              git checkout "${PR_BRANCH}"
-              git reset --hard "${PR_BRANCH}"
-            else
-              git fetch origin main
-              git checkout main
-              git reset --hard origin/main
-            fi
-            chmod +x deploy/install_user_systemd.sh
-            ./deploy/install_user_systemd.sh
+            set -euo pipefail
+            cd ${{ env.APP_DIR }}
+            docker compose pull || true
+            docker compose up -d --build --pull always --force-recreate --remove-orphans
+            curl -fsS http://localhost:8000/health >/dev/null

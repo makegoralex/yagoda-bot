@@ -16,11 +16,6 @@ templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "tem
 app.include_router(mvp_router)
 
 
-@app.get("/version")
-def version() -> dict[str, str]:
-    return {"version": os.getenv("APP_VERSION", "unknown")}
-
-
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
@@ -81,6 +76,13 @@ def company_page(request: Request, company_id: str) -> HTMLResponse:
 @app.get("/company/{company_id}", response_class=HTMLResponse)
 def company_page_alias(request: Request, company_id: str) -> HTMLResponse:
     return _render_company_page(request, company_id)
+
+
+@app.get("/{path:path}", response_class=HTMLResponse)
+def fallback_page(request: Request, path: str) -> HTMLResponse:
+    if path.startswith("api"):
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+    return _render_home(request)
 
 
 def _get_required_env(name: str) -> str:

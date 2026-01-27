@@ -12,7 +12,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via refresh script
+      - name: Deploy via native refresh script
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -21,5 +21,5 @@ jobs:
           script: |
             set -euo pipefail
             cd ${{ env.APP_DIR }}
-            chmod +x deploy/refresh_docker.sh
-            ./deploy/refresh_docker.sh
+            chmod +x deploy/refresh_native.sh
+            ./deploy/refresh_native.sh

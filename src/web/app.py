@@ -48,11 +48,6 @@ def home_page(request: Request) -> HTMLResponse:
     return _render_home(request)
 
 
-@app.get("/demo", response_class=HTMLResponse)
-def demo_page(request: Request) -> HTMLResponse:
-    return _render_home(request)
-
-
 def _render_company_page(request: Request, company_id: str) -> HTMLResponse:
     store = load_store()
     company = store.companies.get(company_id)

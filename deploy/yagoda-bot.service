@@ -1,0 +1,14 @@
+[Unit]
+Description=Yagoda deploy refresh (native systemd)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/yagoda_staff/yagoda-bot
+ExecStart=/home/yagoda_staff/yagoda-bot/deploy/refresh_native.sh
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

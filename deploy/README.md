@@ -7,6 +7,9 @@ chmod +x deploy/install_native_systemd.sh
 ./deploy/install_native_systemd.sh
 ```
 
+Если у вас всё ещё используется `deploy/install_systemd.sh`, он теперь просто
+переадресует на нативный установщик.
+
 This creates two services:
 - `yagoda-backend.service` (uvicorn)
 - `yagoda-bot-native.service` (telegram bot)
